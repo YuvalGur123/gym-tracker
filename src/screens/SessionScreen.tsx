@@ -9,7 +9,7 @@ import {
     Alert,
 } from "react-native";
 import { ExerciseLog } from "../types";
-import { saveSession } from "../db/database";
+import { saveSession, loadExerciseHistory } from "../db/database";
 import ExerciseCard from "../components/ExerciseCard";
 
 function useTimer() {
@@ -26,13 +26,18 @@ function useTimer() {
     const hours = Math.floor(elapsed / 3600);
     const minutes = Math.floor((elapsed % 3600) / 60);
     const seconds = elapsed % 60;
-
     const display = hours > 0
         ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
         : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 
     return { display, elapsed };
 }
+
+type ExerciseMeta = {
+    lastWeight?: number;
+    lastReps?: number;
+    personalRecord?: number;
+};
 
 export default function SessionScreen({ route, navigation }: any) {
     const session = useMemo(() => ({
@@ -44,7 +49,37 @@ export default function SessionScreen({ route, navigation }: any) {
     const logsRef = useRef<ExerciseLog[]>([]);
     const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
     const [saved, setSaved] = useState(false);
+    const [exerciseMeta, setExerciseMeta] = useState<Record<string, ExerciseMeta>>({});
     const { display: timerDisplay, elapsed } = useTimer();
+
+    // Load last weight + PR for each exercise on mount
+    useEffect(() => {
+        const meta: Record<string, ExerciseMeta> = {};
+        for (const ex of session.program.exercises) {
+            const history = loadExerciseHistory(ex.name);
+            if (history.length === 0) continue;
+
+            // Last session data
+            const lastSession = history[history.length - 1];
+            if (lastSession.sets.length > 0) {
+                const lastSet = lastSession.sets[lastSession.sets.length - 1];
+                meta[ex.id] = {
+                    lastWeight: lastSet.weight,
+                    lastReps: lastSet.reps,
+                };
+            }
+
+            // All-time PR (heaviest weight ever)
+            let pr = 0;
+            for (const h of history) {
+                for (const s of h.sets) {
+                    if (s.weight > pr) pr = s.weight;
+                }
+            }
+            if (pr > 0) meta[ex.id] = { ...meta[ex.id], personalRecord: pr };
+        }
+        setExerciseMeta(meta);
+    }, []);
 
     const addSet = useCallback((exerciseId: string, exerciseName: string, weight: number, reps: number) => {
         const current = logsRef.current;
@@ -76,7 +111,6 @@ export default function SessionScreen({ route, navigation }: any) {
     function handleEndSession() {
         const logs = logsRef.current;
         const totalSets = logs.reduce((acc, l) => acc + l.sets.length, 0);
-
         Alert.alert(
             "End Session",
             totalSets === 0
@@ -133,11 +167,15 @@ export default function SessionScreen({ route, navigation }: any) {
                 removeClippedSubviews={false}
                 renderItem={({ item }) => {
                     const log = exerciseLogs.find((l) => l.exerciseId === item.id);
+                    const meta = exerciseMeta[item.id];
                     return (
                         <ExerciseCard
                             exerciseName={item.name}
                             sets={log?.sets ?? []}
                             onAddSet={callbacksRef.current[item.id]}
+                            lastWeight={meta?.lastWeight}
+                            lastReps={meta?.lastReps}
+                            personalRecord={meta?.personalRecord}
                         />
                     );
                 }}
@@ -161,17 +199,7 @@ const styles = StyleSheet.create({
     programLabel: { fontSize: 20, fontWeight: "700", color: "#fff" },
     stats: { fontSize: 13, color: "#888", marginTop: 2 },
     headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-    timer: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#e0ff4f",
-        fontVariant: ["tabular-nums"],
-    },
-    endBtn: {
-        backgroundColor: "#ff4f4f",
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
+    timer: { fontSize: 18, fontWeight: "700", color: "#e0ff4f", fontVariant: ["tabular-nums"] },
+    endBtn: { backgroundColor: "#ff4f4f", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
     endBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });

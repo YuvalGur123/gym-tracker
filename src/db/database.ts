@@ -9,13 +9,15 @@ export function initDB() {
     db.execSync(`
     CREATE TABLE IF NOT EXISTS programs (
       id TEXT PRIMARY KEY NOT NULL,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS exercises (
       id TEXT PRIMARY KEY NOT NULL,
       programId TEXT NOT NULL,
-      name TEXT NOT NULL
+      name TEXT NOT NULL,
+      sort_order INTEGER DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
@@ -38,10 +40,15 @@ export function initDB() {
     );
   `);
 
-    // Migration: fix rows where exerciseName was accidentally saved as the
-    // exercise ID (a pure-numeric timestamp string like "1779543719580").
-    // We can recover the real name by parsing the composite log id, which
-    // is structured as "<sessionId>-<exerciseId>", and looking up exercises.
+    // Add sort_order columns if upgrading from older schema
+    try { db.execSync(`ALTER TABLE programs ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
+    try { db.execSync(`ALTER TABLE exercises ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
+
+    // Backfill sort_order from rowid for existing rows
+    db.execSync(`UPDATE programs SET sort_order = rowid WHERE sort_order = 0;`);
+    db.execSync(`UPDATE exercises SET sort_order = rowid WHERE sort_order = 0;`);
+
+    // Migration: fix rows where exerciseName was accidentally saved as the exercise ID
     db.execSync(`
       UPDATE exercise_logs
       SET exerciseName = (
@@ -59,29 +66,42 @@ export function initDB() {
 
 // ── Programs ──────────────────────────────────────────────
 
-export function saveProgram(program: Program) {
+export function saveProgram(program: Program, sortOrder?: number) {
+    const order = sortOrder ?? Date.now();
     db.runSync(
-        `INSERT OR REPLACE INTO programs (id, name) VALUES (?, ?);`,
-        [program.id, program.name]
+        `INSERT OR REPLACE INTO programs (id, name, sort_order) VALUES (?, ?, ?);`,
+        [program.id, program.name, order]
     );
-    for (const ex of program.exercises) {
+    program.exercises.forEach((ex, i) => {
         db.runSync(
-            `INSERT OR REPLACE INTO exercises (id, programId, name) VALUES (?, ?, ?);`,
-            [ex.id, program.id, ex.name]
+            `INSERT OR REPLACE INTO exercises (id, programId, name, sort_order) VALUES (?, ?, ?, ?);`,
+            [ex.id, program.id, ex.name, i]
         );
-    }
+    });
 }
 
 export function loadPrograms(): Program[] {
     const programs = db.getAllSync<{ id: string; name: string }>(
-        `SELECT * FROM programs ORDER BY rowid ASC;`
+        `SELECT * FROM programs ORDER BY sort_order ASC;`
     );
     return programs.map((p) => {
         const exercises = db.getAllSync<{ id: string; name: string }>(
-            `SELECT * FROM exercises WHERE programId = ? ORDER BY rowid ASC;`,
+            `SELECT * FROM exercises WHERE programId = ? ORDER BY sort_order ASC;`,
             [p.id]
         );
         return { ...p, exercises };
+    });
+}
+
+export function reorderPrograms(orderedIds: string[]) {
+    orderedIds.forEach((id, i) => {
+        db.runSync(`UPDATE programs SET sort_order = ? WHERE id = ?;`, [i, id]);
+    });
+}
+
+export function reorderExercises(programId: string, orderedIds: string[]) {
+    orderedIds.forEach((id, i) => {
+        db.runSync(`UPDATE exercises SET sort_order = ? WHERE id = ? AND programId = ?;`, [i, id, programId]);
     });
 }
 
@@ -119,10 +139,34 @@ export type SessionSummary = {
     date: string;
 };
 
+export type SessionDetail = SessionSummary & {
+    exercises: { name: string; sets: { weight: number; reps: number }[] }[];
+};
+
 export function loadSessionSummaries(): SessionSummary[] {
     return db.getAllSync<SessionSummary>(
         `SELECT * FROM sessions ORDER BY date DESC;`
     );
+}
+
+export function loadSessionDetail(sessionId: string): SessionDetail | null {
+    const session = db.getFirstSync<SessionSummary>(
+        `SELECT * FROM sessions WHERE id = ?;`, [sessionId]
+    );
+    if (!session) return null;
+
+    const logs = db.getAllSync<{ id: string; exerciseName: string }>(
+        `SELECT id, exerciseName FROM exercise_logs WHERE sessionId = ?;`, [sessionId]
+    );
+
+    const exercises = logs.map((log) => {
+        const sets = db.getAllSync<{ weight: number; reps: number }>(
+            `SELECT weight, reps FROM sets WHERE exerciseLogId = ? ORDER BY rowid ASC;`, [log.id]
+        );
+        return { name: log.exerciseName, sets };
+    }).filter((e) => e.sets.length > 0);
+
+    return { ...session, exercises };
 }
 
 export type ExerciseHistory = {
@@ -139,21 +183,15 @@ export function loadExerciseHistory(exerciseName: string): ExerciseHistory[] {
     );
 
     const result: ExerciseHistory[] = [];
-
     for (const log of logs) {
         const session = db.getFirstSync<{ date: string }>(
-            `SELECT date FROM sessions WHERE id = ?;`,
-            [log.sessionId]
+            `SELECT date FROM sessions WHERE id = ?;`, [log.sessionId]
         );
         const sets = db.getAllSync<{ weight: number; reps: number }>(
-            `SELECT weight, reps FROM sets WHERE exerciseLogId = ? ORDER BY rowid ASC;`,
-            [log.id]
+            `SELECT weight, reps FROM sets WHERE exerciseLogId = ? ORDER BY rowid ASC;`, [log.id]
         );
-        if (session && sets.length > 0) {
-            result.push({ date: session.date, sets });
-        }
+        if (session && sets.length > 0) result.push({ date: session.date, sets });
     }
-
     return result;
 }
 
@@ -173,8 +211,8 @@ export function loadAllProgramNames(): string[] {
 
 export type ProgramSessionPoint = {
     date: string;
-    totalVolume: number;   // sum of weight×reps across all exercises
-    maxWeight: number;     // single heaviest set across all exercises
+    totalVolume: number;
+    maxWeight: number;
     exerciseBreakdown: { name: string; maxWeight: number; totalVolume: number }[];
 };
 
@@ -186,8 +224,7 @@ export function loadProgramHistory(programName: string): ProgramSessionPoint[] {
 
     return sessions.map((s) => {
         const logs = db.getAllSync<{ id: string; exerciseName: string }>(
-            `SELECT id, exerciseName FROM exercise_logs WHERE sessionId = ?;`,
-            [s.id]
+            `SELECT id, exerciseName FROM exercise_logs WHERE sessionId = ?;`, [s.id]
         );
 
         let totalVolume = 0;
@@ -196,8 +233,7 @@ export function loadProgramHistory(programName: string): ProgramSessionPoint[] {
 
         for (const log of logs) {
             const sets = db.getAllSync<{ weight: number; reps: number }>(
-                `SELECT weight, reps FROM sets WHERE exerciseLogId = ?;`,
-                [log.id]
+                `SELECT weight, reps FROM sets WHERE exerciseLogId = ?;`, [log.id]
             );
             if (sets.length === 0) continue;
             const exVol = sets.reduce((acc, s) => acc + s.weight * s.reps, 0);

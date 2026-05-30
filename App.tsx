@@ -12,7 +12,7 @@ import SessionScreen from "./src/screens/SessionScreen";
 import HistoryScreen from "./src/screens/HistoryScreen";
 import ProgressScreen from "./src/screens/ProgressScreen";
 
-import { initDB, loadPrograms, saveProgram, deleteProgram } from "./src/db/database";
+import { initDB, loadPrograms, saveProgram, deleteProgram, reorderPrograms } from "./src/db/database";
 import { Program, Session } from "./src/types";
 
 export type RootStackParamList = {
@@ -31,27 +31,17 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createMaterialTopTabNavigator<TabParamList>();
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
-    const icons: Record<string, string> = {
-        Home: "🏋️",
-        History: "📋",
-        Progress: "📈",
-    };
-    return (
-        <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>
-            {icons[name] ?? "•"}
-        </Text>
-    );
+    const icons: Record<string, string> = { Home: "🏋️", History: "📋", Progress: "📈" };
+    return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{icons[name] ?? "•"}</Text>;
 }
 
-function Tabs({ onStartSession, programs, onDeleteProgram }: any) {
+function Tabs({ onStartSession, programs, onDeleteProgram, onReorderPrograms, navigation }: any) {
     const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
             tabBarPosition="bottom"
             screenOptions={({ route }) => ({
-                tabBarIcon: ({ focused }) => (
-                    <TabIcon name={route.name} focused={focused} />
-                ),
+                tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
                 tabBarStyle: {
                     backgroundColor: "#0f0f0f",
                     borderTopWidth: 1,
@@ -74,6 +64,7 @@ function Tabs({ onStartSession, programs, onDeleteProgram }: any) {
                         programs={programs}
                         onStartSession={onStartSession}
                         onDeleteProgram={onDeleteProgram}
+                        onReorderPrograms={onReorderPrograms}
                     />
                 )}
             </Tab.Screen>
@@ -101,13 +92,13 @@ export default function App() {
         setPrograms(loadPrograms());
     }
 
+    function handleReorderPrograms(orderedIds: string[]) {
+        reorderPrograms(orderedIds);
+        setPrograms(loadPrograms());
+    }
+
     function createSession(program: Program): Session {
-        return {
-            id: Date.now().toString(),
-            program,
-            date: new Date().toISOString(),
-            exerciseLogs: [],
-        };
+        return { id: Date.now().toString(), program, date: new Date().toISOString(), exerciseLogs: [] };
     }
 
     return (
@@ -126,6 +117,7 @@ export default function App() {
                                 {...props}
                                 programs={programs}
                                 onDeleteProgram={handleDeleteProgram}
+                                onReorderPrograms={handleReorderPrograms}
                                 onStartSession={(program: Program) => {
                                     const session = createSession(program);
                                     props.navigation.navigate("Session", { session });
@@ -134,10 +126,9 @@ export default function App() {
                         )}
                     </Stack.Screen>
 
-                    <Stack.Screen
-                        name="CreateProgram"
-                        options={{ title: "New Program" }}
-                    >
+                    <Stack.Screen name="CreateProgram" options={({ route }: any) => ({
+                        title: route.params?.program ? "Edit Program" : "New Program",
+                    })}>
                         {(props) => (
                             <CreateProgramScreen
                                 {...props}
@@ -149,10 +140,7 @@ export default function App() {
                         )}
                     </Stack.Screen>
 
-                    <Stack.Screen
-                        name="Session"
-                        options={{ title: "Workout", headerBackVisible: false }}
-                    >
+                    <Stack.Screen name="Session" options={{ title: "Workout", headerBackVisible: false }}>
                         {(props) => <SessionScreen {...props} />}
                     </Stack.Screen>
                 </Stack.Navigator>

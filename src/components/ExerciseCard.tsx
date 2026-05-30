@@ -6,35 +6,49 @@ type Props = {
     exerciseName: string;
     sets: LoggedSet[];
     onAddSet: (weight: number, reps: number) => void;
+    lastWeight?: number;   // weight from most recent previous session
+    lastReps?: number;
+    personalRecord?: number; // all-time best weight for this exercise
 };
 
-// memo prevents re-render unless sets array or callbacks change
-const ExerciseCard = memo(function ExerciseCard({ exerciseName, sets, onAddSet }: Props) {
-    const [weight, setWeight] = useState("");
-    const [reps, setReps] = useState("");
+const ExerciseCard = memo(function ExerciseCard({ exerciseName, sets, onAddSet, lastWeight, lastReps, personalRecord }: Props) {
+    const [weight, setWeight] = useState(lastWeight ? String(lastWeight) : "");
+    const [reps, setReps] = useState(lastReps ? String(lastReps) : "");
 
     function handleAddSet() {
         const w = parseFloat(weight);
         const r = parseInt(reps, 10);
         if (isNaN(w) || isNaN(r) || w < 0 || r <= 0) return;
         onAddSet(w, r);
-        setWeight("");
+        // Keep weight pre-filled, clear reps for next set
         setReps("");
     }
 
     const bestSet = sets.length > 0
-        ? sets.reduce((best, s) => s.weight * s.reps > best.weight * best.reps ? s : best, sets[0])
+        ? sets.reduce((best, s) => s.weight > best.weight ? s : best, sets[0])
         : null;
+
+    const isPR = bestSet && personalRecord && bestSet.weight > personalRecord;
 
     return (
         <View style={styles.card}>
             <View style={styles.cardHeader}>
-                <Text style={styles.name}>{exerciseName}</Text>
-                {bestSet && (
-                    <Text style={styles.best}>
-                        Best: {bestSet.weight}kg × {bestSet.reps}
-                    </Text>
-                )}
+                <View style={{ flex: 1 }}>
+                    <Text style={styles.name}>{exerciseName}</Text>
+                    {lastWeight != null && (
+                        <Text style={styles.lastSession}>
+                            Last: {lastWeight}kg × {lastReps}
+                        </Text>
+                    )}
+                </View>
+                <View style={styles.headerRight}>
+                    {isPR && <Text style={styles.prBadge}>🏆 PR</Text>}
+                    {bestSet && (
+                        <Text style={styles.best}>
+                            Best: {bestSet.weight}kg × {bestSet.reps}
+                        </Text>
+                    )}
+                </View>
             </View>
 
             {sets.length > 0 && (
@@ -96,9 +110,12 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#2a2a2a",
     },
-    cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-    name: { fontSize: 17, fontWeight: "700", color: "#fff", flex: 1 },
-    best: { fontSize: 12, color: "#e0ff4f", fontWeight: "600" },
+    cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
+    name: { fontSize: 17, fontWeight: "700", color: "#fff" },
+    lastSession: { fontSize: 12, color: "#555", marginTop: 2 },
+    headerRight: { alignItems: "flex-end", gap: 2 },
+    prBadge: { fontSize: 12, fontWeight: "700", color: "#e0ff4f" },
+    best: { fontSize: 12, color: "#888", fontWeight: "600" },
     setsTable: { marginBottom: 12, backgroundColor: "#141414", borderRadius: 8, overflow: "hidden" },
     tableHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#222" },
     tableRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1e1e1e" },

@@ -1,24 +1,91 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import {
     View,
     Text,
-    FlatList,
     TouchableOpacity,
     StyleSheet,
     Alert,
+    Animated,
+    PanResponder,
+    ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Program } from "../types";
+import { reorderPrograms } from "../db/database";
 
 type Props = {
     programs: Program[];
     onStartSession: (program: Program) => void;
     onDeleteProgram: (id: string) => void;
+    onReorderPrograms: (ids: string[]) => void;
     navigation: any;
 };
 
-export default function HomeScreen({ programs, onStartSession, onDeleteProgram, navigation }: Props) {
-    const insets = useSafeAreaInsets();
+const ITEM_HEIGHT = 160;
+
+function DraggableProgramList({ programs, onStartSession, onDeleteProgram, onReorderPrograms, navigation }: Props) {
+    const [order, setOrder] = useState(() => programs.map((p) => p.id));
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const dragY = useRef(new Animated.Value(0)).current;
+    const dragStartY = useRef(0);
+    const dragIndex = useRef(-1);
+    const currentOrder = useRef(order);
+
+    // Sync order when programs prop changes (add/delete)
+    React.useEffect(() => {
+        const newOrder = programs.map((p) => p.id);
+        setOrder(newOrder);
+        currentOrder.current = newOrder;
+    }, [programs]);
+
+    const programMap = Object.fromEntries(programs.map((p) => [p.id, p]));
+
+    function getIndex(id: string) {
+        return currentOrder.current.indexOf(id);
+    }
+
+    function makePanResponder(id: string) {
+        return PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 8,
+            onPanResponderGrant: (_, g) => {
+                dragIndex.current = getIndex(id);
+                dragStartY.current = dragIndex.current * ITEM_HEIGHT;
+                dragY.setValue(0);
+                setDraggingId(id);
+            },
+            onPanResponderMove: (_, g) => {
+                dragY.setValue(g.dy);
+                const newIndex = Math.max(0, Math.min(
+                    currentOrder.current.length - 1,
+                    Math.round((dragStartY.current + g.dy) / ITEM_HEIGHT)
+                ));
+                if (newIndex !== dragIndex.current) {
+                    const next = [...currentOrder.current];
+                    next.splice(dragIndex.current, 1);
+                    next.splice(newIndex, 0, id);
+                    dragIndex.current = newIndex;
+                    dragStartY.current = newIndex * ITEM_HEIGHT;
+                    dragY.setValue(g.dy - (newIndex - getIndex(id)) * ITEM_HEIGHT);
+                    currentOrder.current = next;
+                    setOrder(next);
+                }
+            },
+            onPanResponderRelease: () => {
+                setDraggingId(null);
+                dragY.setValue(0);
+                onReorderPrograms(currentOrder.current);
+            },
+        });
+    }
+
+    // Cache pan responders so they don't recreate on every render
+    const panResponders = useRef<Record<string, ReturnType<typeof PanResponder.create>>>({});
+    programs.forEach((p) => {
+        if (!panResponders.current[p.id]) {
+            panResponders.current[p.id] = makePanResponder(p.id);
+        }
+    });
 
     function confirmDelete(program: Program) {
         Alert.alert(
@@ -30,6 +97,62 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
             ]
         );
     }
+
+    return (
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+            {order.map((id) => {
+                const item = programMap[id];
+                if (!item) return null;
+                const isDragging = draggingId === id;
+                const pan = panResponders.current[id];
+
+                return (
+                    <Animated.View
+                        key={id}
+                        style={[
+                            styles.card,
+                            isDragging && styles.cardDragging,
+                            isDragging && { transform: [{ translateY: dragY }], zIndex: 99 },
+                        ]}
+                    >
+                        <View style={styles.cardHeader}>
+                            <Text style={styles.cardName}>{item.name}</Text>
+                            <View style={styles.cardActions}>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate("CreateProgram", { program: item })}
+                                    style={styles.actionBtn}
+                                >
+                                    <Text style={styles.editBtn}>✏️</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => confirmDelete(item)} style={styles.actionBtn}>
+                                    <Text style={styles.deleteBtn}>✕</Text>
+                                </TouchableOpacity>
+                                <View {...pan.panHandlers} style={styles.dragHandle}>
+                                    <Text style={styles.dragIcon}>☰</Text>
+                                </View>
+                            </View>
+                        </View>
+                        <Text style={styles.cardExercises}>
+                            {item.exercises.map((e) => e.name).join(" · ")}
+                        </Text>
+                        <Text style={styles.cardCount}>
+                            {item.exercises.length} exercise{item.exercises.length !== 1 ? "s" : ""}
+                        </Text>
+                        <TouchableOpacity
+                            style={styles.startBtn}
+                            onPress={() => onStartSession(item)}
+                        >
+                            <Text style={styles.startBtnText}>▶ Start Session</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+                );
+            })}
+        </ScrollView>
+    );
+}
+
+export default function HomeScreen({ programs, onStartSession, onDeleteProgram, onReorderPrograms, navigation }: Props) {
+    const insets = useSafeAreaInsets();
 
     return (
         <View style={styles.container}>
@@ -58,32 +181,12 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
                     </TouchableOpacity>
                 </View>
             ) : (
-                <FlatList
-                    data={programs}
-                    keyExtractor={(item) => item.id}
-                    contentContainerStyle={{ padding: 16, gap: 12 }}
-                    renderItem={({ item }) => (
-                        <View style={styles.card}>
-                            <View style={styles.cardHeader}>
-                                <Text style={styles.cardName}>{item.name}</Text>
-                                <TouchableOpacity onPress={() => confirmDelete(item)}>
-                                    <Text style={styles.deleteBtn}>✕</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <Text style={styles.cardExercises}>
-                                {item.exercises.map((e) => e.name).join(" · ")}
-                            </Text>
-                            <Text style={styles.cardCount}>
-                                {item.exercises.length} exercise{item.exercises.length !== 1 ? "s" : ""}
-                            </Text>
-                            <TouchableOpacity
-                                style={styles.startBtn}
-                                onPress={() => onStartSession(item)}
-                            >
-                                <Text style={styles.startBtnText}>▶ Start Session</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                <DraggableProgramList
+                    programs={programs}
+                    onStartSession={onStartSession}
+                    onDeleteProgram={onDeleteProgram}
+                    onReorderPrograms={onReorderPrograms}
+                    navigation={navigation}
                 />
             )}
         </View>
@@ -125,9 +228,23 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "#2a2a2a",
     },
+    cardDragging: {
+        backgroundColor: "#242424",
+        borderColor: "#e0ff4f",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+        elevation: 10,
+    },
     cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
     cardName: { fontSize: 20, fontWeight: "700", color: "#fff", flex: 1 },
-    deleteBtn: { color: "#555", fontSize: 18, paddingLeft: 12 },
+    cardActions: { flexDirection: "row", alignItems: "center", gap: 4 },
+    actionBtn: { padding: 4 },
+    editBtn: { fontSize: 16 },
+    deleteBtn: { color: "#555", fontSize: 18, paddingHorizontal: 4 },
+    dragHandle: { padding: 4, paddingLeft: 8 },
+    dragIcon: { color: "#555", fontSize: 18 },
     cardExercises: { fontSize: 13, color: "#888", marginBottom: 4 },
     cardCount: { fontSize: 12, color: "#555", marginBottom: 14 },
     startBtn: {
