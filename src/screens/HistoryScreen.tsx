@@ -4,8 +4,8 @@ import {
     Text,
     FlatList,
     StyleSheet,
-    SafeAreaView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { loadSessionSummaries, SessionSummary } from "../db/database";
 
@@ -25,6 +25,7 @@ function timeAgo(iso: string) {
 }
 
 export default function HistoryScreen() {
+    const insets = useSafeAreaInsets();
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
 
     useFocusEffect(
@@ -34,8 +35,8 @@ export default function HistoryScreen() {
     );
 
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
+        <View style={styles.container}>
+            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                 <Text style={styles.title}>History</Text>
                 <Text style={styles.subtitle}>{sessions.length} session{sessions.length !== 1 ? "s" : ""}</Text>
             </View>
@@ -62,13 +63,13 @@ export default function HistoryScreen() {
                     )}
                 />
             )}
-        </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0f0f0f" },
-    header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+    header: { paddingHorizontal: 20, paddingBottom: 12 },
     title: { fontSize: 28, fontWeight: "800", color: "#fff" },
     subtitle: { fontSize: 13, color: "#555", marginTop: 4 },
     empty: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },

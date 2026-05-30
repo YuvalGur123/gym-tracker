@@ -5,9 +5,8 @@ import {
     ScrollView,
     TouchableOpacity,
     StyleSheet,
-    SafeAreaView,
-    Dimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import {
     loadAllExerciseNames,
@@ -378,12 +377,13 @@ function StatsRow({ latest, count, change, unit, decimals }: {
 // ── Root screen ───────────────────────────────────────────
 
 export default function ProgressScreen() {
+    const insets = useSafeAreaInsets();
     const [mode, setMode] = useState<ViewMode>("exercise");
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
             <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-                <View style={styles.header}>
+                <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                     <Text style={styles.title}>Progress</Text>
                 </View>
 
@@ -409,13 +409,13 @@ export default function ProgressScreen() {
 
                 {mode === "exercise" ? <ExerciseView /> : <ProgramView />}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#0f0f0f" },
-    header: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 },
+    header: { paddingHorizontal: 20, paddingBottom: 12 },
     title: { fontSize: 28, fontWeight: "800", color: "#fff" },
 
     modeToggle: { flexDirection: "row", marginHorizontal: 20, marginBottom: 20, backgroundColor: "#1a1a1a", borderRadius: 12, padding: 4, borderWidth: 1, borderColor: "#2a2a2a" },

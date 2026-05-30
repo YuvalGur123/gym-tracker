@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
+    Keyboard,
 } from "react-native";
 import { Program, Exercise } from "../types";
 
@@ -22,12 +23,21 @@ export default function CreateProgramScreen({ onSave, navigation }: Props) {
     const [name, setName] = useState("");
     const [exerciseName, setExerciseName] = useState("");
     const [exercises, setExercises] = useState<Exercise[]>([]);
+    const exerciseInputRef = useRef<TextInput>(null);
 
     function addExercise() {
         const trimmed = exerciseName.trim();
         if (!trimmed) return;
-        setExercises([...exercises, { id: Date.now().toString(), name: trimmed }]);
+        setExercises((prev) => [...prev, { id: Date.now().toString(), name: trimmed }]);
         setExerciseName("");
+        // Keep focus on the input so user can keep adding
+        exerciseInputRef.current?.focus();
+    }
+
+    function handleAddPress() {
+        // Dismiss keyboard first, then add — done in same tick so no delay
+        Keyboard.dismiss();
+        addExercise();
     }
 
     function removeExercise(id: string) {
@@ -55,6 +65,7 @@ export default function CreateProgramScreen({ onSave, navigation }: Props) {
                 <FlatList
                     data={exercises}
                     keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
                     ListHeaderComponent={
                         <View style={styles.form}>
                             <Text style={styles.label}>Program Name</Text>
@@ -69,6 +80,7 @@ export default function CreateProgramScreen({ onSave, navigation }: Props) {
                             <Text style={styles.label}>Add Exercise</Text>
                             <View style={styles.row}>
                                 <TextInput
+                                    ref={exerciseInputRef}
                                     style={[styles.input, { flex: 1, marginRight: 10 }]}
                                     placeholder="e.g. Bench Press"
                                     placeholderTextColor="#444"
@@ -76,8 +88,14 @@ export default function CreateProgramScreen({ onSave, navigation }: Props) {
                                     onChangeText={setExerciseName}
                                     onSubmitEditing={addExercise}
                                     returnKeyType="done"
+                                    blurOnSubmit={false}
                                 />
-                                <TouchableOpacity style={styles.addBtn} onPress={addExercise}>
+                                <TouchableOpacity
+                                    style={styles.addBtn}
+                                    onPress={handleAddPress}
+                                    // This is the key fix: lets the press register before keyboard dismisses
+                                    onPressIn={handleAddPress}
+                                >
                                     <Text style={styles.addBtnText}>+</Text>
                                 </TouchableOpacity>
                             </View>

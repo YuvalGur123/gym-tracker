@@ -5,9 +5,9 @@ import {
     FlatList,
     TouchableOpacity,
     StyleSheet,
-    SafeAreaView,
     Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Program } from "../types";
 
 type Props = {
@@ -18,6 +18,8 @@ type Props = {
 };
 
 export default function HomeScreen({ programs, onStartSession, onDeleteProgram, navigation }: Props) {
+    const insets = useSafeAreaInsets();
+
     function confirmDelete(program: Program) {
         Alert.alert(
             "Delete Program",
@@ -30,8 +32,8 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
+        <View style={styles.container}>
+            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                 <Text style={styles.title}>My Programs</Text>
                 <TouchableOpacity
                     style={styles.addBtn}
@@ -84,7 +86,7 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
                     )}
                 />
             )}
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -95,7 +97,6 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: 20,
-        paddingTop: 20,
         paddingBottom: 12,
     },
     title: { fontSize: 28, fontWeight: "800", color: "#fff" },

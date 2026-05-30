@@ -2,10 +2,9 @@ import "react-native-gesture-handler";
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { Text } from "react-native";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Updates from "expo-updates";
 
 import HomeScreen from "./src/screens/HomeScreen";
 import CreateProgramScreen from "./src/screens/CreateProgramScreen";
@@ -29,7 +28,7 @@ export type TabParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<TabParamList>();
+const Tab = createMaterialTopTabNavigator<TabParamList>();
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
     const icons: Record<string, string> = {
@@ -48,21 +47,24 @@ function Tabs({ onStartSession, programs, onDeleteProgram }: any) {
     const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
+            tabBarPosition="bottom"
             screenOptions={({ route }) => ({
-                headerShown: false,
                 tabBarIcon: ({ focused }) => (
                     <TabIcon name={route.name} focused={focused} />
                 ),
                 tabBarStyle: {
                     backgroundColor: "#0f0f0f",
+                    borderTopWidth: 1,
                     borderTopColor: "#222",
                     paddingBottom: insets.bottom + 4,
-                    paddingTop: 6,
                     height: 64 + insets.bottom,
                 },
                 tabBarActiveTintColor: "#e0ff4f",
                 tabBarInactiveTintColor: "#555",
                 tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+                tabBarIndicatorStyle: { backgroundColor: "transparent" },
+                tabBarShowIcon: true,
+                swipeEnabled: true,
             })}
         >
             <Tab.Screen name="Home">
@@ -87,17 +89,6 @@ export default function App() {
     useEffect(() => {
         initDB();
         setPrograms(loadPrograms());
-    }, []);
-
-    useEffect(() => {
-        async function checkForUpdate() {
-            const update = await Updates.checkForUpdateAsync();
-            if (update.isAvailable) {
-                await Updates.fetchUpdateAsync();
-                await Updates.reloadAsync();
-            }
-        }
-        checkForUpdate();
     }, []);
 
     function handleSaveProgram(program: Program) {
