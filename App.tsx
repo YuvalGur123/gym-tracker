@@ -4,6 +4,8 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Text } from "react-native";
+import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Updates from "expo-updates";
 
 import HomeScreen from "./src/screens/HomeScreen";
 import CreateProgramScreen from "./src/screens/CreateProgramScreen";
@@ -43,6 +45,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 }
 
 function Tabs({ onStartSession, programs, onDeleteProgram }: any) {
+    const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
             screenOptions={({ route }) => ({
@@ -53,9 +56,9 @@ function Tabs({ onStartSession, programs, onDeleteProgram }: any) {
                 tabBarStyle: {
                     backgroundColor: "#0f0f0f",
                     borderTopColor: "#222",
-                    paddingBottom: 8,
+                    paddingBottom: insets.bottom + 4,
                     paddingTop: 6,
-                    height: 64,
+                    height: 64 + insets.bottom,
                 },
                 tabBarActiveTintColor: "#e0ff4f",
                 tabBarInactiveTintColor: "#555",
@@ -86,6 +89,17 @@ export default function App() {
         setPrograms(loadPrograms());
     }, []);
 
+    useEffect(() => {
+        async function checkForUpdate() {
+            const update = await Updates.checkForUpdateAsync();
+            if (update.isAvailable) {
+                await Updates.fetchUpdateAsync();
+                await Updates.reloadAsync();
+            }
+        }
+        checkForUpdate();
+    }, []);
+
     function handleSaveProgram(program: Program) {
         saveProgram(program);
         setPrograms(loadPrograms());
@@ -106,50 +120,52 @@ export default function App() {
     }
 
     return (
-        <NavigationContainer>
-            <Stack.Navigator
-                screenOptions={{
-                    headerStyle: { backgroundColor: "#0f0f0f" },
-                    headerTintColor: "#e0ff4f",
-                    headerTitleStyle: { fontWeight: "700" },
-                }}
-            >
-                <Stack.Screen name="Tabs" options={{ headerShown: false }}>
-                    {(props) => (
-                        <Tabs
-                            {...props}
-                            programs={programs}
-                            onDeleteProgram={handleDeleteProgram}
-                            onStartSession={(program: Program) => {
-                                const session = createSession(program);
-                                props.navigation.navigate("Session", { session });
-                            }}
-                        />
-                    )}
-                </Stack.Screen>
-
-                <Stack.Screen
-                    name="CreateProgram"
-                    options={{ title: "New Program" }}
+        <SafeAreaProvider>
+            <NavigationContainer>
+                <Stack.Navigator
+                    screenOptions={{
+                        headerStyle: { backgroundColor: "#0f0f0f" },
+                        headerTintColor: "#e0ff4f",
+                        headerTitleStyle: { fontWeight: "700" },
+                    }}
                 >
-                    {(props) => (
-                        <CreateProgramScreen
-                            {...props}
-                            onSave={(program: Program) => {
-                                handleSaveProgram(program);
-                                props.navigation.goBack();
-                            }}
-                        />
-                    )}
-                </Stack.Screen>
+                    <Stack.Screen name="Tabs" options={{ headerShown: false }}>
+                        {(props) => (
+                            <Tabs
+                                {...props}
+                                programs={programs}
+                                onDeleteProgram={handleDeleteProgram}
+                                onStartSession={(program: Program) => {
+                                    const session = createSession(program);
+                                    props.navigation.navigate("Session", { session });
+                                }}
+                            />
+                        )}
+                    </Stack.Screen>
 
-                <Stack.Screen
-                    name="Session"
-                    options={{ title: "Workout", headerBackVisible: false }}
-                >
-                    {(props) => <SessionScreen {...props} />}
-                </Stack.Screen>
-            </Stack.Navigator>
-        </NavigationContainer>
+                    <Stack.Screen
+                        name="CreateProgram"
+                        options={{ title: "New Program" }}
+                    >
+                        {(props) => (
+                            <CreateProgramScreen
+                                {...props}
+                                onSave={(program: Program) => {
+                                    handleSaveProgram(program);
+                                    props.navigation.goBack();
+                                }}
+                            />
+                        )}
+                    </Stack.Screen>
+
+                    <Stack.Screen
+                        name="Session"
+                        options={{ title: "Workout", headerBackVisible: false }}
+                    >
+                        {(props) => <SessionScreen {...props} />}
+                    </Stack.Screen>
+                </Stack.Navigator>
+            </NavigationContainer>
+        </SafeAreaProvider>
     );
 }

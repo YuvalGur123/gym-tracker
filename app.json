@@ -13,10 +13,16 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.iovl123.gymtracker"
     },
     "plugins": [
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "53e1ba98-754b-46c2-a363-92ee7110d34a"
+      }
+    }
   }
 }
