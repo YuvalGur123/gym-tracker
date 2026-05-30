@@ -18,9 +18,7 @@ import {
     ProgramSessionPoint,
 } from "../db/database";
 
-const SCREEN_W = Dimensions.get("window").width;
-const Y_AXIS_W = 44; // wide enough for 4-digit numbers
-const CHART_W = SCREEN_W - 80 - (Y_AXIS_W - 36); // compensate for wider y-axis
+const Y_AXIS_W = 44;
 const CHART_H = 160;
 const DOT_R = 5;
 
@@ -47,6 +45,8 @@ function makeXLabels(dates: string[]): string[] {
 // ── Shared line chart (pure RN views) ─────────────────────
 
 function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
+    const [chartW, setChartW] = useState(0);
+
     if (values.length < 2) {
         return (
             <View style={chartStyles.placeholder}>
@@ -61,10 +61,10 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
     const max = Math.max(...values);
     const range = max - min || 1;
 
-    const pts = values.map((v, i) => ({
-        x: DOT_R + (i / (values.length - 1)) * (CHART_W - DOT_R * 2),
+    const pts = chartW > 0 ? values.map((v, i) => ({
+        x: DOT_R + (i / (values.length - 1)) * (chartW - DOT_R * 2),
         y: CHART_H - ((v - min) / range) * (CHART_H - 20) - 10,
-    }));
+    })) : [];
 
     const segments = pts.slice(0, -1).map((p, i) => {
         const next = pts[i + 1];
@@ -77,16 +77,17 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
 
     return (
         <View style={chartStyles.container}>
-            {/* Top row: Y-axis + plot area */}
             <View style={chartStyles.plotRow}>
-                {/* Y axis — wider so labels aren't clipped */}
                 <View style={chartStyles.yAxis}>
                     <Text style={chartStyles.yLabel}>{max.toFixed(0)}</Text>
                     <Text style={chartStyles.yLabel}>{((max + min) / 2).toFixed(0)}</Text>
                     <Text style={chartStyles.yLabel}>{min.toFixed(0)}</Text>
                 </View>
 
-                <View style={{ width: CHART_W, height: CHART_H }}>
+                <View
+                    style={{ flex: 1, height: CHART_H, overflow: "hidden" }}
+                    onLayout={(e) => setChartW(e.nativeEvent.layout.width)}
+                >
                     {[0.15, 0.5, 0.85].map((t, i) => (
                         <View key={i} style={[chartStyles.gridLine, { top: t * CHART_H }]} />
                     ))}
@@ -116,10 +117,10 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
                 </View>
             </View>
 
-            {/* X labels row: offset by Y_AXIS_W to align under the plot area */}
+            {/* X labels row aligned under plot area */}
             <View style={chartStyles.xLabelsRow}>
                 <View style={{ width: Y_AXIS_W }} />
-                <View style={[chartStyles.xLabels, { width: CHART_W }]}>
+                <View style={[chartStyles.xLabels, { flex: 1 }]}>
                     <Text style={chartStyles.xLabel}>{labels[0]}</Text>
                     <Text style={chartStyles.xLabel}>{labels[labels.length - 1]}</Text>
                 </View>
