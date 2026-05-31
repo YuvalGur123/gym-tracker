@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { Text } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import HomeScreen from "./src/screens/HomeScreen";
@@ -102,49 +103,51 @@ export default function App() {
     }
 
     return (
-        <SafeAreaProvider>
-            <NavigationContainer>
-                <Stack.Navigator
-                    screenOptions={{
-                        headerStyle: { backgroundColor: "#0f0f0f" },
-                        headerTintColor: "#e0ff4f",
-                        headerTitleStyle: { fontWeight: "700" },
-                    }}
-                >
-                    <Stack.Screen name="Tabs" options={{ headerShown: false }}>
-                        {(props) => (
-                            <Tabs
-                                {...props}
-                                programs={programs}
-                                onDeleteProgram={handleDeleteProgram}
-                                onReorderPrograms={handleReorderPrograms}
-                                onStartSession={(program: Program) => {
-                                    const session = createSession(program);
-                                    props.navigation.navigate("Session", { session });
-                                }}
-                            />
-                        )}
-                    </Stack.Screen>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+                <NavigationContainer>
+                    <Stack.Navigator
+                        screenOptions={{
+                            headerStyle: { backgroundColor: "#0f0f0f" },
+                            headerTintColor: "#e0ff4f",
+                            headerTitleStyle: { fontWeight: "700" },
+                        }}
+                    >
+                        <Stack.Screen name="Tabs" options={{ headerShown: false }}>
+                            {(props) => (
+                                <Tabs
+                                    {...props}
+                                    programs={programs}
+                                    onDeleteProgram={handleDeleteProgram}
+                                    onReorderPrograms={handleReorderPrograms}
+                                    onStartSession={(program: Program) => {
+                                        const session = createSession(program);
+                                        props.navigation.navigate("Session", { session });
+                                    }}
+                                />
+                            )}
+                        </Stack.Screen>
 
-                    <Stack.Screen name="CreateProgram" options={({ route }: any) => ({
-                        title: route.params?.program ? "Edit Program" : "New Program",
-                    })}>
-                        {(props) => (
-                            <CreateProgramScreen
-                                {...props}
-                                onSave={(program: Program) => {
-                                    handleSaveProgram(program);
-                                    props.navigation.goBack();
-                                }}
-                            />
-                        )}
-                    </Stack.Screen>
+                        <Stack.Screen name="CreateProgram" options={({ route }: any) => ({
+                            title: route.params?.program ? "Edit Program" : "New Program",
+                        })}>
+                            {(props) => (
+                                <CreateProgramScreen
+                                    {...props}
+                                    onSave={(program: Program) => {
+                                        handleSaveProgram(program);
+                                        props.navigation.goBack();
+                                    }}
+                                />
+                            )}
+                        </Stack.Screen>
 
-                    <Stack.Screen name="Session" options={{ title: "Workout", headerBackVisible: false }}>
-                        {(props) => <SessionScreen {...props} />}
-                    </Stack.Screen>
-                </Stack.Navigator>
-            </NavigationContainer>
-        </SafeAreaProvider>
+                        <Stack.Screen name="Session" options={{ title: "Workout", headerBackVisible: false }}>
+                            {(props) => <SessionScreen {...props} />}
+                        </Stack.Screen>
+                    </Stack.Navigator>
+                </NavigationContainer>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
     );
 }
