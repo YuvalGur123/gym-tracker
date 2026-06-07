@@ -26,6 +26,20 @@ const ExerciseCard = memo(function ExerciseCard({
         setReps("");
     }
 
+    function handleWeightChange(text: string) {
+        // Allow digits and at most one dot
+        const cleaned = text.replace(/[^0-9.]/g, "");
+        const parts = cleaned.split(".");
+        if (parts.length > 2) return; // reject second dot
+        setWeight(cleaned);
+    }
+
+    function handleRepsChange(text: string) {
+        // Whole numbers only
+        const cleaned = text.replace(/[^0-9]/g, "");
+        setReps(cleaned);
+    }
+
     function handleDeleteSet(setId: string, index: number) {
         Alert.alert(
             "Delete Set",
@@ -95,7 +109,7 @@ const ExerciseCard = memo(function ExerciseCard({
                     placeholderTextColor="#444"
                     keyboardType="decimal-pad"
                     value={weight}
-                    onChangeText={setWeight}
+                    onChangeText={handleWeightChange}
                 />
                 <Text style={styles.x}>×</Text>
                 <TextInput
@@ -104,7 +118,7 @@ const ExerciseCard = memo(function ExerciseCard({
                     placeholderTextColor="#444"
                     keyboardType="number-pad"
                     value={reps}
-                    onChangeText={setReps}
+                    onChangeText={handleRepsChange}
                     onSubmitEditing={handleAddSet}
                     returnKeyType="done"
                 />

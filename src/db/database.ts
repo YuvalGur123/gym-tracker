@@ -195,6 +195,17 @@ export function loadExerciseHistory(exerciseName: string): ExerciseHistory[] {
     return result;
 }
 
+export function deleteSession(sessionId: string) {
+    const logs = db.getAllSync<{ id: string }>(
+        `SELECT id FROM exercise_logs WHERE sessionId = ?;`, [sessionId]
+    );
+    for (const log of logs) {
+        db.runSync(`DELETE FROM sets WHERE exerciseLogId = ?;`, [log.id]);
+    }
+    db.runSync(`DELETE FROM exercise_logs WHERE sessionId = ?;`, [sessionId]);
+    db.runSync(`DELETE FROM sessions WHERE id = ?;`, [sessionId]);
+}
+
 export function loadAllExerciseNames(): string[] {
     const rows = db.getAllSync<{ exerciseName: string }>(
         `SELECT DISTINCT exerciseName FROM exercise_logs ORDER BY exerciseName ASC;`

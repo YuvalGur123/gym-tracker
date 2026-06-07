@@ -7,10 +7,11 @@ import {
     TouchableOpacity,
     Modal,
     ScrollView,
+    Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { loadSessionSummaries, loadSessionDetail, SessionSummary, SessionDetail } from "../db/database";
+import { loadSessionSummaries, loadSessionDetail, deleteSession, SessionSummary, SessionDetail } from "../db/database";
 
 function formatDate(iso: string) {
     const d = new Date(iso);
@@ -27,21 +28,35 @@ function timeAgo(iso: string) {
     return `${Math.floor(days / 30)}mo ago`;
 }
 
-function SessionDetailModal({ session, onClose }: { session: SessionDetail; onClose: () => void }) {
+function SessionDetailModal({ session, onClose, onDelete }: { session: SessionDetail; onClose: () => void; onDelete: () => void }) {
     const insets = useSafeAreaInsets();
     const totalSets = session.exercises.reduce((acc, e) => acc + e.sets.length, 0);
     const totalVolume = session.exercises.reduce((acc, e) =>
         acc + e.sets.reduce((a, s) => a + s.weight * s.reps, 0), 0
     );
 
+    function confirmDelete() {
+        Alert.alert(
+            "Delete Session",
+            "Permanently delete this session? This can't be undone.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { text: "Delete", style: "destructive", onPress: onDelete },
+            ]
+        );
+    }
+
     return (
         <Modal animationType="slide" transparent={false} onRequestClose={onClose}>
             <View style={[modal.container, { paddingTop: insets.top }]}>
                 <View style={modal.header}>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={modal.title}>{session.programName}</Text>
                         <Text style={modal.subtitle}>{formatDate(session.date)}</Text>
                     </View>
+                    <TouchableOpacity onPress={confirmDelete} style={modal.deleteBtn}>
+                        <Text style={modal.deleteBtnText}>🗑</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={onClose} style={modal.closeBtn}>
                         <Text style={modal.closeBtnText}>✕</Text>
                     </TouchableOpacity>
@@ -106,6 +121,13 @@ export default function HistoryScreen() {
         if (detail) setSelectedSession(detail);
     }
 
+    function handleDeleteSession() {
+        if (!selectedSession) return;
+        deleteSession(selectedSession.id);
+        setSessions((prev) => prev.filter((s) => s.id !== selectedSession.id));
+        setSelectedSession(null);
+    }
+
     return (
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -143,6 +165,7 @@ export default function HistoryScreen() {
                 <SessionDetailModal
                     session={selectedSession}
                     onClose={() => setSelectedSession(null)}
+                    onDelete={handleDeleteSession}
                 />
             )}
         </View>
@@ -189,8 +212,10 @@ const modal = StyleSheet.create({
     },
     title: { fontSize: 22, fontWeight: "800", color: "#fff" },
     subtitle: { fontSize: 13, color: "#555", marginTop: 4 },
-    closeBtn: { padding: 4 },
+    closeBtn: { padding: 8 },
     closeBtnText: { color: "#555", fontSize: 20 },
+    deleteBtn: { padding: 8 },
+    deleteBtnText: { fontSize: 20 },
     stats: {
         flexDirection: "row",
         paddingHorizontal: 16,

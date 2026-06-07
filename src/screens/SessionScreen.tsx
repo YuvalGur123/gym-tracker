@@ -4,10 +4,10 @@ import {
     Text,
     TouchableOpacity,
     StyleSheet,
-    SafeAreaView,
     Alert,
 } from "react-native";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExerciseLog } from "../types";
 import { saveSession, loadExerciseHistory } from "../db/database";
 import ExerciseCard from "../components/ExerciseCard";
@@ -46,6 +46,7 @@ export default function SessionScreen({ route, navigation }: any) {
     const logsRef = useRef<ExerciseLog[]>([]);
     const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
     const [saved, setSaved] = useState(false);
+    const endingRef = useRef(false);
     const [exerciseMeta, setExerciseMeta] = useState<Record<string, ExerciseMeta>>({});
     const { display: timerDisplay, elapsed } = useTimer();
 
@@ -118,12 +119,25 @@ export default function SessionScreen({ route, navigation }: any) {
                             saveSession({ ...session, exerciseLogs: logs });
                             setSaved(true);
                         }
+                        endingRef.current = true;
                         navigation.popToTop();
                     },
                 },
             ]
         );
     }
+
+    const insets = useSafeAreaInsets();
+
+    // Intercept hardware/gesture back button
+    useEffect(() => {
+        const unsubscribe = navigation.addListener("beforeRemove", (e: any) => {
+            if (endingRef.current) return; // allow intentional end
+            e.preventDefault();
+            handleEndSession();
+        });
+        return unsubscribe;
+    }, [navigation, elapsed]);
 
     const totalSets = exerciseLogs.reduce((acc, l) => acc + l.sets.length, 0);
 
@@ -170,7 +184,7 @@ export default function SessionScreen({ route, navigation }: any) {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
             <View style={styles.header}>
                 <View>
                     <Text style={styles.programLabel}>{session.program.name}</Text>
@@ -190,11 +204,11 @@ export default function SessionScreen({ route, navigation }: any) {
                 onDragEnd={({ data }) => setExercises(data)}
                 renderItem={renderItem}
                 activationDistance={1}
-                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }}
+                contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: insets.bottom + 80 }}
                 removeClippedSubviews={false}
                 keyboardShouldPersistTaps="handled"
             />
-        </SafeAreaView>
+        </View>
     );
 }
 
