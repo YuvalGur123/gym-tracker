@@ -12,6 +12,7 @@ import CreateProgramScreen from "./src/screens/CreateProgramScreen";
 import SessionScreen from "./src/screens/SessionScreen";
 import HistoryScreen from "./src/screens/HistoryScreen";
 import ProgressScreen from "./src/screens/ProgressScreen";
+import SettingsScreen from "./src/screens/SettingsScreen";
 
 import { initDB, loadPrograms, saveProgram, deleteProgram, reorderPrograms } from "./src/db/database";
 import { Program, Session } from "./src/types";
@@ -20,6 +21,7 @@ export type RootStackParamList = {
     Tabs: undefined;
     CreateProgram: { program?: Program };
     Session: { session: Session };
+    Settings: undefined;
 };
 
 export type TabParamList = {
@@ -36,7 +38,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
     return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.5 }}>{icons[name] ?? "•"}</Text>;
 }
 
-function Tabs({ onStartSession, programs, onDeleteProgram, onReorderPrograms, navigation }: any) {
+function Tabs({ onStartSession, programs, onDeleteProgram, onReorderPrograms }: any) {
     const insets = useSafeAreaInsets();
     return (
         <Tab.Navigator
@@ -145,6 +147,8 @@ export default function App() {
                         <Stack.Screen name="Session" options={{ title: "Workout", headerBackVisible: false }}>
                             {(props) => <SessionScreen {...props} />}
                         </Stack.Screen>
+
+                        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
                     </Stack.Navigator>
                 </NavigationContainer>
             </SafeAreaProvider>

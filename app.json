@@ -17,7 +17,8 @@
       "package": "com.iovl123.gymtracker"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

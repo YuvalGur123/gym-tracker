@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import {
     View,
     Text,
@@ -22,7 +22,6 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
     const insets = useSafeAreaInsets();
     const [data, setData] = useState(programs);
 
-    // Sync when programs change externally (add/delete)
     React.useEffect(() => { setData(programs); }, [programs]);
 
     function confirmDelete(program: Program) {
@@ -68,10 +67,7 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
                     <Text style={styles.cardCount}>
                         {item.exercises.length} exercise{item.exercises.length !== 1 ? "s" : ""}
                     </Text>
-                    <TouchableOpacity
-                        style={styles.startBtn}
-                        onPress={() => onStartSession(item)}
-                    >
+                    <TouchableOpacity style={styles.startBtn} onPress={() => onStartSession(item)}>
                         <Text style={styles.startBtnText}>▶ Start Session</Text>
                     </TouchableOpacity>
                 </View>
@@ -83,12 +79,20 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
         <View style={styles.container}>
             <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
                 <Text style={styles.title}>My Programs</Text>
-                <TouchableOpacity
-                    style={styles.addBtn}
-                    onPress={() => navigation.navigate("CreateProgram", {})}
-                >
-                    <Text style={styles.addBtnText}>+ New</Text>
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity
+                        style={styles.settingsBtn}
+                        onPress={() => navigation.navigate("Settings")}
+                    >
+                        <Text style={styles.settingsIcon}>⚙️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.addBtn}
+                        onPress={() => navigation.navigate("CreateProgram", {})}
+                    >
+                        <Text style={styles.addBtnText}>+ New</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {programs.length === 0 ? (
@@ -132,6 +136,9 @@ const styles = StyleSheet.create({
         paddingBottom: 12,
     },
     title: { fontSize: 28, fontWeight: "800", color: "#fff" },
+    headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+    settingsBtn: { padding: 4 },
+    settingsIcon: { fontSize: 22 },
     addBtn: {
         backgroundColor: "#e0ff4f",
         paddingHorizontal: 16,

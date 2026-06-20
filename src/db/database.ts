@@ -40,15 +40,12 @@ export function initDB() {
     );
   `);
 
-    // Add sort_order columns if upgrading from older schema
     try { db.execSync(`ALTER TABLE programs ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
     try { db.execSync(`ALTER TABLE exercises ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
 
-    // Backfill sort_order from rowid for existing rows
     db.execSync(`UPDATE programs SET sort_order = rowid WHERE sort_order = 0;`);
     db.execSync(`UPDATE exercises SET sort_order = rowid WHERE sort_order = 0;`);
 
-    // Migration: fix rows where exerciseName was accidentally saved as the exercise ID
     db.execSync(`
       UPDATE exercise_logs
       SET exerciseName = (
@@ -169,6 +166,17 @@ export function loadSessionDetail(sessionId: string): SessionDetail | null {
     return { ...session, exercises };
 }
 
+export function deleteSession(sessionId: string) {
+    const logs = db.getAllSync<{ id: string }>(
+        `SELECT id FROM exercise_logs WHERE sessionId = ?;`, [sessionId]
+    );
+    for (const log of logs) {
+        db.runSync(`DELETE FROM sets WHERE exerciseLogId = ?;`, [log.id]);
+    }
+    db.runSync(`DELETE FROM exercise_logs WHERE sessionId = ?;`, [sessionId]);
+    db.runSync(`DELETE FROM sessions WHERE id = ?;`, [sessionId]);
+}
+
 export type ExerciseHistory = {
     date: string;
     sets: { weight: number; reps: number }[];
@@ -193,17 +201,6 @@ export function loadExerciseHistory(exerciseName: string): ExerciseHistory[] {
         if (session && sets.length > 0) result.push({ date: session.date, sets });
     }
     return result;
-}
-
-export function deleteSession(sessionId: string) {
-    const logs = db.getAllSync<{ id: string }>(
-        `SELECT id FROM exercise_logs WHERE sessionId = ?;`, [sessionId]
-    );
-    for (const log of logs) {
-        db.runSync(`DELETE FROM sets WHERE exerciseLogId = ?;`, [log.id]);
-    }
-    db.runSync(`DELETE FROM exercise_logs WHERE sessionId = ?;`, [sessionId]);
-    db.runSync(`DELETE FROM sessions WHERE id = ?;`, [sessionId]);
 }
 
 export function loadAllExerciseNames(): string[] {
@@ -256,4 +253,70 @@ export function loadProgramHistory(programName: string): ProgramSessionPoint[] {
 
         return { date: s.date, totalVolume, maxWeight, exerciseBreakdown };
     }).filter((p) => p.exerciseBreakdown.length > 0);
+}
+
+// ── Export / Import ──────────────────────────────────────
+
+export type BackupData = {
+    version: number;
+    exportedAt: string;
+    programs: { id: string; name: string; sort_order: number }[];
+    exercises: { id: string; programId: string; name: string; sort_order: number }[];
+    sessions: { id: string; programName: string; date: string }[];
+    exercise_logs: { id: string; sessionId: string; exerciseName: string }[];
+    sets: { id: string; exerciseLogId: string; weight: number; reps: number }[];
+};
+
+export function exportAllData(): BackupData {
+    return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        programs: db.getAllSync(`SELECT id, name, sort_order FROM programs;`),
+        exercises: db.getAllSync(`SELECT id, programId, name, sort_order FROM exercises;`),
+        sessions: db.getAllSync(`SELECT id, programName, date FROM sessions;`),
+        exercise_logs: db.getAllSync(`SELECT id, sessionId, exerciseName FROM exercise_logs;`),
+        sets: db.getAllSync(`SELECT id, exerciseLogId, weight, reps FROM sets;`),
+    };
+}
+
+export function importAllData(backup: BackupData) {
+    // Wipe existing data
+    db.execSync(`
+        DELETE FROM sets;
+        DELETE FROM exercise_logs;
+        DELETE FROM sessions;
+        DELETE FROM exercises;
+        DELETE FROM programs;
+    `);
+
+    for (const p of backup.programs) {
+        db.runSync(
+            `INSERT INTO programs (id, name, sort_order) VALUES (?, ?, ?);`,
+            [p.id, p.name, p.sort_order]
+        );
+    }
+    for (const e of backup.exercises) {
+        db.runSync(
+            `INSERT INTO exercises (id, programId, name, sort_order) VALUES (?, ?, ?, ?);`,
+            [e.id, e.programId, e.name, e.sort_order]
+        );
+    }
+    for (const s of backup.sessions) {
+        db.runSync(
+            `INSERT INTO sessions (id, programName, date) VALUES (?, ?, ?);`,
+            [s.id, s.programName, s.date]
+        );
+    }
+    for (const l of backup.exercise_logs) {
+        db.runSync(
+            `INSERT INTO exercise_logs (id, sessionId, exerciseName) VALUES (?, ?, ?);`,
+            [l.id, l.sessionId, l.exerciseName]
+        );
+    }
+    for (const s of backup.sets) {
+        db.runSync(
+            `INSERT INTO sets (id, exerciseLogId, weight, reps) VALUES (?, ?, ?, ?);`,
+            [s.id, s.exerciseLogId, s.weight, s.reps]
+        );
+    }
 }
