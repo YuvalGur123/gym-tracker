@@ -9,6 +9,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import { Program } from "../types";
+import { useTheme } from "../theme/ThemeContext";
+import { ThemeColors } from "../theme/theme";
 
 type Props = {
     programs: Program[];
@@ -20,6 +22,8 @@ type Props = {
 
 export default function HomeScreen({ programs, onStartSession, onDeleteProgram, onReorderPrograms, navigation }: Props) {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [data, setData] = useState(programs);
 
     React.useEffect(() => { setData(programs); }, [programs]);
@@ -126,8 +130,8 @@ export default function HomeScreen({ programs, onStartSession, onDeleteProgram, 
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -135,37 +139,37 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingBottom: 12,
     },
-    title: { fontSize: 28, fontWeight: "800", color: "#fff" },
+    title: { fontSize: 28, fontWeight: "800", color: c.text },
     headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
     settingsBtn: { padding: 4 },
     settingsIcon: { fontSize: 22 },
     addBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
     },
-    addBtnText: { color: "#0f0f0f", fontWeight: "700", fontSize: 14 },
+    addBtnText: { color: c.accentText, fontWeight: "700", fontSize: 14 },
     empty: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
     emptyIcon: { fontSize: 56, marginBottom: 16 },
-    emptyTitle: { fontSize: 22, fontWeight: "700", color: "#fff", marginBottom: 8 },
-    emptySubtitle: { fontSize: 15, color: "#666", textAlign: "center", marginBottom: 32 },
+    emptyTitle: { fontSize: 22, fontWeight: "700", color: c.text, marginBottom: 8 },
+    emptySubtitle: { fontSize: 15, color: c.textDim, textAlign: "center", marginBottom: 32 },
     createBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 12,
     },
-    createBtnText: { color: "#0f0f0f", fontWeight: "700", fontSize: 16 },
+    createBtnText: { color: c.accentText, fontWeight: "700", fontSize: 16 },
     card: {
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderRadius: 16,
         padding: 18,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
     },
     cardDragging: {
-        borderColor: "#e0ff4f",
+        borderColor: c.accent,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.5,
@@ -178,20 +182,20 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginBottom: 8,
     },
-    cardName: { fontSize: 20, fontWeight: "700", color: "#fff", flex: 1 },
+    cardName: { fontSize: 20, fontWeight: "700", color: c.text, flex: 1 },
     cardActions: { flexDirection: "row", alignItems: "center" },
     actionBtn: { padding: 10 },
     editIcon: { fontSize: 16 },
-    deleteIcon: { color: "#555", fontSize: 18 },
+    deleteIcon: { color: c.textFaint, fontSize: 18 },
     dragHandle: { padding: 10 },
-    dragIcon: { color: "#888", fontSize: 20 },
-    cardExercises: { fontSize: 13, color: "#888", marginBottom: 4 },
-    cardCount: { fontSize: 12, color: "#555", marginBottom: 14 },
+    dragIcon: { color: c.textDim, fontSize: 20 },
+    cardExercises: { fontSize: 13, color: c.textDim, marginBottom: 4 },
+    cardCount: { fontSize: 12, color: c.textFaint, marginBottom: 14 },
     startBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         borderRadius: 10,
         paddingVertical: 12,
         alignItems: "center",
     },
-    startBtnText: { color: "#0f0f0f", fontWeight: "700", fontSize: 15 },
+    startBtnText: { color: c.accentText, fontWeight: "700", fontSize: 15 },
 });

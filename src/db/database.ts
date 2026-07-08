@@ -38,6 +38,16 @@ export function initDB() {
       weight REAL,
       reps INTEGER
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS body_weight_entries (
+      date TEXT PRIMARY KEY NOT NULL,
+      weight REAL NOT NULL
+    );
   `);
 
     try { db.execSync(`ALTER TABLE programs ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
@@ -319,4 +329,54 @@ export function importAllData(backup: BackupData) {
             [s.id, s.exerciseLogId, s.weight, s.reps]
         );
     }
+}
+
+// ── Settings ──────────────────────────────────────────────
+
+export function getSetting(key: string): string | null {
+    const row = db.getFirstSync<{ value: string }>(
+        `SELECT value FROM settings WHERE key = ?;`, [key]
+    );
+    return row ? row.value : null;
+}
+
+export function setSetting(key: string, value: string) {
+    db.runSync(
+        `INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);`,
+        [key, value]
+    );
+}
+
+// ── Body Weight Tracking ─────────────────────────────────
+// Weights are always stored in kilograms; unit conversion is a display concern.
+
+export type WeightEntry = { date: string; weight: number };
+
+function todayKey(): string {
+    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+export function loadWeightEntries(): WeightEntry[] {
+    return db.getAllSync<WeightEntry>(
+        `SELECT date, weight FROM body_weight_entries ORDER BY date ASC;`
+    );
+}
+
+export function getTodayWeightEntry(): WeightEntry | null {
+    const row = db.getFirstSync<WeightEntry>(
+        `SELECT date, weight FROM body_weight_entries WHERE date = ?;`,
+        [todayKey()]
+    );
+    return row ?? null;
+}
+
+export function saveTodayWeightEntry(weightKg: number) {
+    db.runSync(
+        `INSERT OR REPLACE INTO body_weight_entries (date, weight) VALUES (?, ?);`,
+        [todayKey(), weightKg]
+    );
+}
+
+export function deleteWeightEntry(date: string) {
+    db.runSync(`DELETE FROM body_weight_entries WHERE date = ?;`, [date]);
 }

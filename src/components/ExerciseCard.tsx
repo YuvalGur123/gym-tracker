@@ -1,6 +1,8 @@
 import React, { useState, memo } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { LoggedSet } from "../types";
+import { useTheme } from "../theme/ThemeContext";
+import { ThemeColors } from "../theme/theme";
 
 type Props = {
     exerciseName: string;
@@ -15,6 +17,8 @@ type Props = {
 const ExerciseCard = memo(function ExerciseCard({
     exerciseName, sets, onAddSet, onDeleteSet, lastWeight, lastReps, personalRecord,
 }: Props) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [weight, setWeight] = useState(lastWeight ? String(lastWeight) : "");
     const [reps, setReps] = useState(lastReps ? String(lastReps) : "");
 
@@ -27,15 +31,13 @@ const ExerciseCard = memo(function ExerciseCard({
     }
 
     function handleWeightChange(text: string) {
-        // Allow digits and at most one dot
         const cleaned = text.replace(/[^0-9.]/g, "");
         const parts = cleaned.split(".");
-        if (parts.length > 2) return; // reject second dot
+        if (parts.length > 2) return;
         setWeight(cleaned);
     }
 
     function handleRepsChange(text: string) {
-        // Whole numbers only
         const cleaned = text.replace(/[^0-9]/g, "");
         setReps(cleaned);
     }
@@ -106,7 +108,7 @@ const ExerciseCard = memo(function ExerciseCard({
                 <TextInput
                     style={styles.input}
                     placeholder="kg"
-                    placeholderTextColor="#444"
+                    placeholderTextColor={colors.textFaint}
                     keyboardType="decimal-pad"
                     value={weight}
                     onChangeText={handleWeightChange}
@@ -115,7 +117,7 @@ const ExerciseCard = memo(function ExerciseCard({
                 <TextInput
                     style={styles.input}
                     placeholder="reps"
-                    placeholderTextColor="#444"
+                    placeholderTextColor={colors.textFaint}
                     keyboardType="number-pad"
                     value={reps}
                     onChangeText={handleRepsChange}
@@ -132,48 +134,48 @@ const ExerciseCard = memo(function ExerciseCard({
 
 export default ExerciseCard;
 
-const styles = StyleSheet.create({
+const getStyles = (c: ThemeColors) => StyleSheet.create({
     card: {
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderRadius: 14,
         padding: 16,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
     },
     cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
-    name: { fontSize: 17, fontWeight: "700", color: "#fff" },
-    lastSession: { fontSize: 12, color: "#555", marginTop: 2 },
+    name: { fontSize: 17, fontWeight: "700", color: c.text },
+    lastSession: { fontSize: 12, color: c.textFaint, marginTop: 2 },
     headerRight: { alignItems: "flex-end", gap: 2 },
-    prBadge: { fontSize: 12, fontWeight: "700", color: "#e0ff4f" },
-    best: { fontSize: 12, color: "#888", fontWeight: "600" },
-    setsTable: { marginBottom: 12, backgroundColor: "#141414", borderRadius: 8, overflow: "hidden" },
-    tableHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#222" },
-    tableRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1e1e1e", alignItems: "center" },
-    tableCell: { flex: 1, color: "#ccc", fontSize: 14, textAlign: "center" },
-    tableLabel: { color: "#555", fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
+    prBadge: { fontSize: 12, fontWeight: "700", color: c.accent },
+    best: { fontSize: 12, color: c.textDim, fontWeight: "600" },
+    setsTable: { marginBottom: 12, backgroundColor: c.input, borderRadius: 8, overflow: "hidden" },
+    tableHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.divider },
+    tableRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.divider, alignItems: "center" },
+    tableCell: { flex: 1, color: c.textDim, fontSize: 14, textAlign: "center" },
+    tableLabel: { color: c.textFaint, fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
     setCol: { flex: 0, width: 32, textAlign: "left" },
     deleteCol: { width: 32, alignItems: "center" },
-    deleteSetBtn: { color: "#ff4f4f", fontSize: 13, fontWeight: "700" },
-    volText: { color: "#e0ff4f" },
+    deleteSetBtn: { color: c.danger, fontSize: 13, fontWeight: "700" },
+    volText: { color: c.accent },
     inputRow: { flexDirection: "row", alignItems: "center", gap: 8 },
     input: {
         flex: 1,
-        backgroundColor: "#111",
+        backgroundColor: c.input,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
         borderRadius: 8,
         paddingVertical: 10,
         paddingHorizontal: 12,
-        color: "#fff",
+        color: c.text,
         fontSize: 16,
         textAlign: "center",
     },
-    x: { color: "#555", fontSize: 16 },
+    x: { color: c.textFaint, fontSize: 16 },
     addBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderRadius: 8,
     },
-    addBtnText: { color: "#0f0f0f", fontWeight: "700", fontSize: 14 },
+    addBtnText: { color: c.accentText, fontWeight: "700", fontSize: 14 },
 });

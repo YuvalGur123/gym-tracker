@@ -12,6 +12,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { loadSessionSummaries, loadSessionDetail, deleteSession, SessionSummary, SessionDetail } from "../db/database";
+import { useTheme } from "../theme/ThemeContext";
+import { ThemeColors } from "../theme/theme";
 
 function formatDate(iso: string) {
     const d = new Date(iso);
@@ -28,8 +30,11 @@ function timeAgo(iso: string) {
     return `${Math.floor(days / 30)}mo ago`;
 }
 
-function SessionDetailModal({ session, onClose, onDelete }: { session: SessionDetail; onClose: () => void; onDelete: () => void }) {
+function SessionDetailModal({ session, onClose, onDelete, colors }: {
+    session: SessionDetail; onClose: () => void; onDelete: () => void; colors: ThemeColors;
+}) {
     const insets = useSafeAreaInsets();
+    const modal = getModalStyles(colors);
     const totalSets = session.exercises.reduce((acc, e) => acc + e.sets.length, 0);
     const totalVolume = session.exercises.reduce((acc, e) =>
         acc + e.sets.reduce((a, s) => a + s.weight * s.reps, 0), 0
@@ -107,6 +112,8 @@ function SessionDetailModal({ session, onClose, onDelete }: { session: SessionDe
 
 export default function HistoryScreen() {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [sessions, setSessions] = useState<SessionSummary[]>([]);
     const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
 
@@ -166,41 +173,42 @@ export default function HistoryScreen() {
                     session={selectedSession}
                     onClose={() => setSelectedSession(null)}
                     onDelete={handleDeleteSession}
+                    colors={colors}
                 />
             )}
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     header: { paddingHorizontal: 20, paddingBottom: 12 },
-    title: { fontSize: 28, fontWeight: "800", color: "#fff" },
-    subtitle: { fontSize: 13, color: "#555", marginTop: 4 },
+    title: { fontSize: 28, fontWeight: "800", color: c.text },
+    subtitle: { fontSize: 13, color: c.textFaint, marginTop: 4 },
     empty: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
     emptyIcon: { fontSize: 48, marginBottom: 16 },
-    emptyTitle: { fontSize: 20, fontWeight: "700", color: "#fff", marginBottom: 8 },
-    emptySubtitle: { fontSize: 15, color: "#666", textAlign: "center" },
+    emptyTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginBottom: 8 },
+    emptySubtitle: { fontSize: 15, color: c.textDim, textAlign: "center" },
     card: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderRadius: 12,
         padding: 16,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
     },
     cardLeft: { flex: 1 },
     cardRight: { flexDirection: "row", alignItems: "center", gap: 6 },
-    programName: { fontSize: 16, fontWeight: "700", color: "#fff", marginBottom: 4 },
-    date: { fontSize: 13, color: "#666" },
-    timeAgo: { fontSize: 13, color: "#e0ff4f", fontWeight: "600" },
-    chevron: { fontSize: 20, color: "#555" },
+    programName: { fontSize: 16, fontWeight: "700", color: c.text, marginBottom: 4 },
+    date: { fontSize: 13, color: c.textDim },
+    timeAgo: { fontSize: 13, color: c.accent, fontWeight: "600" },
+    chevron: { fontSize: 20, color: c.textFaint },
 });
 
-const modal = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getModalStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -208,12 +216,12 @@ const modal = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: "#1e1e1e",
+        borderBottomColor: c.divider,
     },
-    title: { fontSize: 22, fontWeight: "800", color: "#fff" },
-    subtitle: { fontSize: 13, color: "#555", marginTop: 4 },
+    title: { fontSize: 22, fontWeight: "800", color: c.text },
+    subtitle: { fontSize: 13, color: c.textFaint, marginTop: 4 },
     closeBtn: { padding: 8 },
-    closeBtnText: { color: "#555", fontSize: 20 },
+    closeBtnText: { color: c.textFaint, fontSize: 20 },
     deleteBtn: { padding: 8 },
     deleteBtnText: { fontSize: 20 },
     stats: {
@@ -222,30 +230,30 @@ const modal = StyleSheet.create({
         paddingVertical: 16,
         gap: 12,
         borderBottomWidth: 1,
-        borderBottomColor: "#1e1e1e",
+        borderBottomColor: c.divider,
     },
     statBox: {
         flex: 1,
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderRadius: 10,
         padding: 12,
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
     },
-    statValue: { fontSize: 22, fontWeight: "800", color: "#e0ff4f" },
-    statLabel: { fontSize: 10, color: "#555", fontWeight: "600", textTransform: "uppercase", marginTop: 2 },
+    statValue: { fontSize: 22, fontWeight: "800", color: c.accent },
+    statLabel: { fontSize: 10, color: c.textFaint, fontWeight: "600", textTransform: "uppercase", marginTop: 2 },
     exerciseCard: {
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderRadius: 12,
         padding: 14,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
     },
-    exerciseName: { fontSize: 16, fontWeight: "700", color: "#fff", marginBottom: 10 },
+    exerciseName: { fontSize: 16, fontWeight: "700", color: c.text, marginBottom: 10 },
     tableHeader: { flexDirection: "row", marginBottom: 4 },
-    tableRow: { flexDirection: "row", paddingVertical: 6, borderTopWidth: 1, borderTopColor: "#222" },
-    cell: { flex: 1, color: "#ccc", fontSize: 14, textAlign: "center" },
-    headerCell: { color: "#555", fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
-    volText: { color: "#e0ff4f" },
+    tableRow: { flexDirection: "row", paddingVertical: 6, borderTopWidth: 1, borderTopColor: c.divider },
+    cell: { flex: 1, color: c.textDim, fontSize: 14, textAlign: "center" },
+    headerCell: { color: c.textFaint, fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
+    volText: { color: c.accent },
 });

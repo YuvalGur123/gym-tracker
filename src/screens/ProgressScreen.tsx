@@ -4,7 +4,9 @@ import {
     Text,
     ScrollView,
     TouchableOpacity,
+    TextInput,
     StyleSheet,
+    Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -15,7 +17,15 @@ import {
     loadAllProgramNames,
     loadProgramHistory,
     ProgramSessionPoint,
+    loadWeightEntries,
+    getTodayWeightEntry,
+    saveTodayWeightEntry,
+    deleteWeightEntry,
+    WeightEntry,
 } from "../db/database";
+import { useTheme } from "../theme/ThemeContext";
+import { useUnit } from "../theme/UnitContext";
+import { ThemeColors } from "../theme/theme";
 
 const Y_AXIS_W = 44;
 const CHART_H = 160;
@@ -23,7 +33,7 @@ const DOT_R = 5;
 
 type ExerciseMetric = "maxWeight" | "totalVolume";
 type ProgramMetric = "maxWeight" | "totalVolume";
-type ViewMode = "exercise" | "program";
+type ViewMode = "exercise" | "program" | "bodyweight";
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -31,7 +41,6 @@ function shortDate(iso: string) {
     return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// If multiple points share the same calendar date, label by session number instead
 function makeXLabels(dates: string[]): string[] {
     const dayStrings = dates.map((d) => shortDate(d));
     const hasDuplicates = new Set(dayStrings).size < dayStrings.length;
@@ -44,6 +53,8 @@ function makeXLabels(dates: string[]): string[] {
 // ── Shared line chart (pure RN views) ─────────────────────
 
 function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
+    const { colors: c } = useTheme();
+    const chartStyles = getChartStyles(c);
     const [chartW, setChartW] = useState(0);
 
     if (values.length < 2) {
@@ -100,7 +111,7 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
                                 top: seg.y - 1,
                                 width: seg.length,
                                 height: 2,
-                                backgroundColor: "#e0ff4f",
+                                backgroundColor: c.accent,
                                 transformOrigin: "left center",
                                 transform: [{ rotate: `${seg.angle}deg` }],
                             }}
@@ -116,7 +127,6 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
                 </View>
             </View>
 
-            {/* X labels row aligned under plot area */}
             <View style={chartStyles.xLabelsRow}>
                 <View style={{ width: Y_AXIS_W }} />
                 <View style={[chartStyles.xLabels, { flex: 1 }]}>
@@ -128,18 +138,18 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
     );
 }
 
-const chartStyles = StyleSheet.create({
+const getChartStyles = (c: ThemeColors) => StyleSheet.create({
     container: { flexDirection: "column", marginVertical: 8 },
     plotRow: { flexDirection: "row" },
     xLabelsRow: { flexDirection: "row", marginTop: 6 },
-    placeholder: { height: CHART_H, justifyContent: "center", alignItems: "center", backgroundColor: "#141414", borderRadius: 8, width: "100%" },
-    placeholderText: { color: "#555", fontSize: 13 },
+    placeholder: { height: CHART_H, justifyContent: "center", alignItems: "center", backgroundColor: c.input, borderRadius: 8, width: "100%" },
+    placeholderText: { color: c.textFaint, fontSize: 13 },
     yAxis: { width: Y_AXIS_W, height: CHART_H, justifyContent: "space-between", alignItems: "flex-end", paddingRight: 6 },
-    yLabel: { color: "#555", fontSize: 10 },
-    gridLine: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: "#1e1e1e" },
-    dot: { position: "absolute", width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: "#e0ff4f" },
+    yLabel: { color: c.textFaint, fontSize: 10 },
+    gridLine: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: c.divider },
+    dot: { position: "absolute", width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: c.accent },
     xLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
-    xLabel: { color: "#555", fontSize: 11 },
+    xLabel: { color: c.textFaint, fontSize: 11 },
 });
 
 // ── Exercise view ─────────────────────────────────────────
@@ -155,6 +165,8 @@ function processExerciseHistory(history: ExerciseHistory[]): ExerciseDataPoint[]
 }
 
 function ExerciseView() {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [names, setNames] = useState<string[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
     const [history, setHistory] = useState<ExerciseHistory[]>([]);
@@ -215,6 +227,8 @@ function ExerciseView() {
 // ── Program view ──────────────────────────────────────────
 
 function ProgramView() {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [names, setNames] = useState<string[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
     const [history, setHistory] = useState<ProgramSessionPoint[]>([]);
@@ -239,7 +253,6 @@ function ProgramView() {
     const change = latest !== null && first !== null && values.length > 1
         ? ((latest - first) / (first || 1)) * 100 : null;
 
-    // Per-exercise breakdown for the most recent session
     const latestBreakdown = history[history.length - 1]?.exerciseBreakdown ?? [];
 
     if (names.length === 0) return <EmptyState />;
@@ -271,7 +284,6 @@ function ProgramView() {
                 <LineChart values={values} labels={labels} />
             </View>
 
-            {/* Latest session breakdown */}
             {latestBreakdown.length > 0 && (
                 <View style={styles.breakdownContainer}>
                     <Text style={styles.breakdownTitle}>Last session — exercise breakdown</Text>
@@ -288,9 +300,186 @@ function ProgramView() {
     );
 }
 
+// ── Body Weight view ──────────────────────────────────────
+
+function movingAverage(values: number[], windowSize: number): number[] {
+    return values.map((_, i) => {
+        const start = Math.max(0, i - windowSize + 1);
+        const slice = values.slice(start, i + 1);
+        return slice.reduce((a, b) => a + b, 0) / slice.length;
+    });
+}
+
+function BodyWeightView() {
+    const { colors } = useTheme();
+    const { unit, kgToDisplay, displayToKg } = useUnit();
+    const styles = getStyles(colors);
+    const [entries, setEntries] = useState<WeightEntry[]>([]);
+    const [inputValue, setInputValue] = useState("");
+    const [todayEntry, setTodayEntry] = useState<WeightEntry | null>(null);
+
+    useFocusEffect(
+        useCallback(() => {
+            refresh();
+        }, [])
+    );
+
+    function refresh() {
+        const all = loadWeightEntries();
+        setEntries(all);
+        const today = getTodayWeightEntry();
+        setTodayEntry(today);
+        setInputValue(today ? String(round1(kgToDisplay(today.weight))) : "");
+    }
+
+    function round1(n: number) {
+        return Math.round(n * 10) / 10;
+    }
+
+    function handleInputChange(text: string) {
+        const cleaned = text.replace(/[^0-9.]/g, "");
+        const parts = cleaned.split(".");
+        if (parts.length > 2) return;
+        setInputValue(cleaned);
+    }
+
+    function handleSave() {
+        const v = parseFloat(inputValue);
+        if (isNaN(v) || v <= 0) return;
+        const kg = displayToKg(v);
+        saveTodayWeightEntry(kg);
+        refresh();
+    }
+
+    function handleDeleteToday() {
+        if (!todayEntry) return;
+        Alert.alert(
+            "Delete Today's Entry",
+            "Remove today's weight entry?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: () => {
+                        deleteWeightEntry(todayEntry.date);
+                        refresh();
+                    },
+                },
+            ]
+        );
+    }
+
+    const displayValues = entries.map((e) => kgToDisplay(e.weight));
+    const avgWindow = displayValues.length >= 7 ? 7 : displayValues.length;
+    const avgValues = avgWindow > 1 ? movingAverage(displayValues, avgWindow) : displayValues;
+    const dates = entries.map((e) => e.date);
+    const labels = makeXLabels(dates);
+
+    const latestAvg = avgValues[avgValues.length - 1] ?? null;
+    const firstAvg = avgValues[0] ?? null;
+    const change = latestAvg !== null && firstAvg !== null && avgValues.length > 1
+        ? ((latestAvg - firstAvg) / (firstAvg || 1)) * 100 : null;
+
+    if (entries.length === 0 && !todayEntry) {
+        return (
+            <>
+                <WeightEntryBox
+                    value={inputValue}
+                    unit={unit}
+                    isEditing={!!todayEntry}
+                    onChange={handleInputChange}
+                    onSave={handleSave}
+                    onDelete={handleDeleteToday}
+                />
+                <EmptyState />
+            </>
+        );
+    }
+
+    return (
+        <>
+            <WeightEntryBox
+                value={inputValue}
+                unit={unit}
+                isEditing={!!todayEntry}
+                onChange={handleInputChange}
+                onSave={handleSave}
+                onDelete={handleDeleteToday}
+            />
+
+            {entries.length > 0 && (
+                <StatsRow
+                    latest={latestAvg}
+                    count={entries.length}
+                    change={change}
+                    unit={unit}
+                    decimals={1}
+                />
+            )}
+
+            <View style={styles.chartContainer}>
+                {entries.length >= 2 ? (
+                    <LineChart values={avgValues} labels={labels} />
+                ) : (
+                    <View style={{ padding: 20, alignItems: "center" }}>
+                        <Text style={{ color: colors.textFaint, fontSize: 13 }}>
+                            Log at least 2 days to see a trend
+                        </Text>
+                    </View>
+                )}
+            </View>
+
+            {avgWindow > 1 && (
+                <Text style={styles.hint}>
+                    Chart shows a {avgWindow}-day moving average to smooth out daily fluctuations.
+                </Text>
+            )}
+        </>
+    );
+}
+
+function WeightEntryBox({ value, unit, isEditing, onChange, onSave, onDelete }: {
+    value: string; unit: string; isEditing: boolean;
+    onChange: (t: string) => void; onSave: () => void; onDelete: () => void;
+}) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
+    return (
+        <View style={styles.entryBox}>
+            <Text style={styles.entryLabel}>
+                {isEditing ? "Edit Today's Entry" : "Log Today's Weight"}
+            </Text>
+            <View style={styles.entryRow}>
+                <TextInput
+                    style={styles.entryInput}
+                    placeholder={`0.0 ${unit}`}
+                    placeholderTextColor={colors.textFaint}
+                    keyboardType="decimal-pad"
+                    value={value}
+                    onChangeText={onChange}
+                    onSubmitEditing={onSave}
+                    returnKeyType="done"
+                />
+                <Text style={styles.entryUnit}>{unit}</Text>
+                <TouchableOpacity style={styles.entrySaveBtn} onPress={onSave}>
+                    <Text style={styles.entrySaveBtnText}>{isEditing ? "Update" : "Save"}</Text>
+                </TouchableOpacity>
+                {isEditing && (
+                    <TouchableOpacity style={styles.entryDeleteBtn} onPress={onDelete}>
+                        <Text style={styles.entryDeleteBtnText}>✕</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+}
+
 // ── Shared sub-components ─────────────────────────────────
 
 function EmptyState() {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     return (
         <View style={styles.empty}>
             <Text style={styles.emptyIcon}>📈</Text>
@@ -301,6 +490,8 @@ function EmptyState() {
 }
 
 function Picker({ names, selected, onSelect }: { names: string[]; selected: string | null; onSelect: (n: string) => void }) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     return (
         <ScrollView
             horizontal
@@ -326,6 +517,8 @@ function MetricToggle({ options, active, onChange }: {
     active: string;
     onChange: (k: string) => void;
 }) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     return (
         <View style={styles.metricToggle}>
             {options.map((o) => (
@@ -350,6 +543,8 @@ function StatsRow({ latest, count, change, unit, decimals }: {
     unit: string;
     decimals: number;
 }) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     return (
         <View style={styles.statsRow}>
             <View style={styles.statBox}>
@@ -378,6 +573,8 @@ function StatsRow({ latest, count, change, unit, decimals }: {
 
 export default function ProgressScreen() {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const [mode, setMode] = useState<ViewMode>("exercise");
 
     return (
@@ -387,7 +584,6 @@ export default function ProgressScreen() {
                     <Text style={styles.title}>Progress</Text>
                 </View>
 
-                {/* Mode toggle */}
                 <View style={styles.modeToggle}>
                     <TouchableOpacity
                         style={[styles.modeBtn, mode === "exercise" && styles.modeBtnActive]}
@@ -405,53 +601,72 @@ export default function ProgressScreen() {
                             By Program
                         </Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.modeBtn, mode === "bodyweight" && styles.modeBtnActive]}
+                        onPress={() => setMode("bodyweight")}
+                    >
+                        <Text style={[styles.modeBtnText, mode === "bodyweight" && styles.modeBtnTextActive]}>
+                            Body Weight
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
-                {mode === "exercise" ? <ExerciseView /> : <ProgramView />}
+                {mode === "exercise" ? <ExerciseView /> : mode === "program" ? <ProgramView /> : <BodyWeightView />}
             </ScrollView>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     header: { paddingHorizontal: 20, paddingBottom: 12 },
-    title: { fontSize: 28, fontWeight: "800", color: "#fff" },
+    title: { fontSize: 28, fontWeight: "800", color: c.text },
 
-    modeToggle: { flexDirection: "row", marginHorizontal: 20, marginBottom: 20, backgroundColor: "#1a1a1a", borderRadius: 12, padding: 4, borderWidth: 1, borderColor: "#2a2a2a" },
+    modeToggle: { flexDirection: "row", marginHorizontal: 20, marginBottom: 20, backgroundColor: c.card, borderRadius: 12, padding: 4, borderWidth: 1, borderColor: c.cardBorder },
     modeBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center" },
-    modeBtnActive: { backgroundColor: "#e0ff4f" },
-    modeBtnText: { color: "#555", fontWeight: "700", fontSize: 14 },
-    modeBtnTextActive: { color: "#0f0f0f" },
+    modeBtnActive: { backgroundColor: c.accent },
+    modeBtnText: { color: c.textFaint, fontWeight: "700", fontSize: 14 },
+    modeBtnTextActive: { color: c.accentText },
 
     empty: { justifyContent: "center", alignItems: "center", padding: 40, marginTop: 40 },
     emptyIcon: { fontSize: 48, marginBottom: 16 },
-    emptyTitle: { fontSize: 20, fontWeight: "700", color: "#fff", marginBottom: 8 },
-    emptySubtitle: { fontSize: 15, color: "#666", textAlign: "center" },
+    emptyTitle: { fontSize: 20, fontWeight: "700", color: c.text, marginBottom: 8 },
+    emptySubtitle: { fontSize: 15, color: c.textDim, textAlign: "center" },
 
     picker: { marginBottom: 16 },
-    chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: "#1a1a1a", borderWidth: 1, borderColor: "#2a2a2a" },
-    chipActive: { backgroundColor: "#e0ff4f", borderColor: "#e0ff4f" },
-    chipText: { color: "#888", fontWeight: "600", fontSize: 13 },
-    chipTextActive: { color: "#0f0f0f" },
+    chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: c.card, borderWidth: 1, borderColor: c.cardBorder },
+    chipActive: { backgroundColor: c.accent, borderColor: c.accent },
+    chipText: { color: c.textDim, fontWeight: "600", fontSize: 13 },
+    chipTextActive: { color: c.accentText },
 
-    metricToggle: { flexDirection: "row", marginHorizontal: 20, marginBottom: 16, backgroundColor: "#1a1a1a", borderRadius: 10, padding: 4 },
+    metricToggle: { flexDirection: "row", marginHorizontal: 20, marginBottom: 16, backgroundColor: c.card, borderRadius: 10, padding: 4 },
     metricBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center" },
-    metricBtnActive: { backgroundColor: "#2a2a2a" },
-    metricText: { color: "#555", fontWeight: "600", fontSize: 13 },
-    metricTextActive: { color: "#e0ff4f" },
+    metricBtnActive: { backgroundColor: c.cardBorder },
+    metricText: { color: c.textFaint, fontWeight: "600", fontSize: 13 },
+    metricTextActive: { color: c.accent },
 
     statsRow: { flexDirection: "row", marginHorizontal: 20, marginBottom: 16, gap: 10 },
-    statBox: { flex: 1, backgroundColor: "#1a1a1a", borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: "#2a2a2a" },
-    statValue: { fontSize: 20, fontWeight: "800", color: "#fff", marginBottom: 4 },
-    statLabel: { fontSize: 11, color: "#555", textTransform: "uppercase", fontWeight: "600" },
+    statBox: { flex: 1, backgroundColor: c.card, borderRadius: 10, padding: 14, alignItems: "center", borderWidth: 1, borderColor: c.cardBorder },
+    statValue: { fontSize: 20, fontWeight: "800", color: c.text, marginBottom: 4 },
+    statLabel: { fontSize: 11, color: c.textFaint, textTransform: "uppercase", fontWeight: "600" },
 
-    chartContainer: { marginHorizontal: 20, backgroundColor: "#141414", borderRadius: 14, padding: 16, marginBottom: 20 },
+    chartContainer: { marginHorizontal: 20, backgroundColor: c.input, borderRadius: 14, padding: 16, marginBottom: 20 },
 
-    breakdownContainer: { marginHorizontal: 20, backgroundColor: "#1a1a1a", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#2a2a2a" },
-    breakdownTitle: { color: "#555", fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 },
-    breakdownRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#222" },
-    breakdownName: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "600" },
-    breakdownStat: { color: "#e0ff4f", fontSize: 14, fontWeight: "700", marginRight: 12 },
-    breakdownVolume: { color: "#555", fontSize: 12 },
+    breakdownContainer: { marginHorizontal: 20, backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.cardBorder },
+    breakdownTitle: { color: c.textFaint, fontSize: 11, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 },
+    breakdownRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.divider },
+    breakdownName: { flex: 1, color: c.text, fontSize: 14, fontWeight: "600" },
+    breakdownStat: { color: c.accent, fontSize: 14, fontWeight: "700", marginRight: 12 },
+    breakdownVolume: { color: c.textFaint, fontSize: 12 },
+
+    entryBox: { marginHorizontal: 20, marginBottom: 16, backgroundColor: c.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: c.cardBorder },
+    entryLabel: { color: c.textDim, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+    entryRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    entryInput: { flex: 1, backgroundColor: c.input, borderWidth: 1, borderColor: c.cardBorder, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, color: c.text, fontSize: 16 },
+    entryUnit: { color: c.textFaint, fontSize: 14, fontWeight: "600" },
+    entrySaveBtn: { backgroundColor: c.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+    entrySaveBtnText: { color: c.accentText, fontWeight: "700", fontSize: 14 },
+    entryDeleteBtn: { padding: 8 },
+    entryDeleteBtnText: { color: c.danger, fontSize: 16, fontWeight: "700" },
+    hint: { fontSize: 12, color: c.textFaint, paddingHorizontal: 20, marginTop: -8, marginBottom: 20, lineHeight: 18 },
 });

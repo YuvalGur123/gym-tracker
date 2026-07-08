@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from "react-native-draggable-flatlist";
 import { Program, Exercise } from "../types";
+import { useTheme } from "../theme/ThemeContext";
+import { ThemeColors } from "../theme/theme";
 
 type Props = {
     onSave: (program: Program) => void;
@@ -23,6 +25,8 @@ type Props = {
 const ITEM_HEIGHT = 64;
 
 export default function CreateProgramScreen({ onSave, navigation, route }: Props) {
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
     const existingProgram: Program | undefined = route.params?.program;
     const isEditing = !!existingProgram;
 
@@ -108,7 +112,7 @@ export default function CreateProgramScreen({ onSave, navigation, route }: Props
                             <TextInput
                                 style={styles.input}
                                 placeholder="e.g. Push Day A"
-                                placeholderTextColor="#444"
+                                placeholderTextColor={colors.textFaint}
                                 value={name}
                                 onChangeText={setName}
                             />
@@ -119,7 +123,7 @@ export default function CreateProgramScreen({ onSave, navigation, route }: Props
                                     ref={exerciseInputRef}
                                     style={[styles.input, { flex: 1, marginRight: 10 }]}
                                     placeholder="e.g. Bench Press"
-                                    placeholderTextColor="#444"
+                                    placeholderTextColor={colors.textFaint}
                                     value={exerciseName}
                                     onChangeText={setExerciseName}
                                     onSubmitEditing={addExercise}
@@ -159,60 +163,60 @@ export default function CreateProgramScreen({ onSave, navigation, route }: Props
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     form: { padding: 20 },
-    label: { color: "#888", fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, marginTop: 16 },
+    label: { color: c.textDim, fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, marginTop: 16 },
     input: {
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
         borderRadius: 10,
         padding: 14,
-        color: "#fff",
+        color: c.text,
         fontSize: 16,
     },
     row: { flexDirection: "row", alignItems: "center" },
     addBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         width: 48,
         height: 48,
         borderRadius: 10,
         justifyContent: "center",
         alignItems: "center",
     },
-    addBtnText: { color: "#0f0f0f", fontSize: 24, fontWeight: "700", lineHeight: 28 },
-    sectionTitle: { color: "#e0ff4f", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginTop: 24, marginBottom: 4 },
+    addBtnText: { color: c.accentText, fontSize: 24, fontWeight: "700", lineHeight: 28 },
+    sectionTitle: { color: c.accent, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginTop: 24, marginBottom: 4 },
     exerciseRow: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#1a1a1a",
+        backgroundColor: c.card,
         marginHorizontal: 20,
         marginBottom: 8,
         borderRadius: 10,
         paddingLeft: 14,
         borderWidth: 1,
-        borderColor: "#2a2a2a",
+        borderColor: c.cardBorder,
         height: ITEM_HEIGHT,
     },
     exerciseRowDragging: {
-        borderColor: "#e0ff4f",
+        borderColor: c.accent,
         elevation: 10,
     },
-    exerciseNum: { color: "#e0ff4f", fontWeight: "700", fontSize: 14, width: 24 },
-    exerciseName: { flex: 1, color: "#fff", fontSize: 15 },
+    exerciseNum: { color: c.accent, fontWeight: "700", fontSize: 14, width: 24 },
+    exerciseName: { flex: 1, color: c.text, fontSize: 15 },
     removeBtn: { padding: 16 },
-    removeBtnText: { color: "#555", fontSize: 16 },
+    removeBtnText: { color: c.textFaint, fontSize: 16 },
     dragHandle: { paddingHorizontal: 16, paddingVertical: 16 },
-    dragIcon: { color: "#888", fontSize: 20 },
+    dragIcon: { color: c.textDim, fontSize: 20 },
     footer: { padding: 20 },
     saveBtn: {
-        backgroundColor: "#e0ff4f",
+        backgroundColor: c.accent,
         borderRadius: 12,
         paddingVertical: 16,
         alignItems: "center",
         marginTop: 8,
     },
     saveBtnDisabled: { opacity: 0.4 },
-    saveBtnText: { color: "#0f0f0f", fontWeight: "700", fontSize: 16 },
+    saveBtnText: { color: c.accentText, fontWeight: "700", fontSize: 16 },
 });

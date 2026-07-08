@@ -11,6 +11,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ExerciseLog } from "../types";
 import { saveSession, loadExerciseHistory } from "../db/database";
 import ExerciseCard from "../components/ExerciseCard";
+import { useTheme } from "../theme/ThemeContext";
+import { ThemeColors } from "../theme/theme";
 
 function useTimer() {
     const [elapsed, setElapsed] = useState(0);
@@ -128,6 +130,8 @@ export default function SessionScreen({ route, navigation }: any) {
     }
 
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const styles = getStyles(colors);
 
     // Intercept hardware/gesture back button
     useEffect(() => {
@@ -212,8 +216,8 @@ export default function SessionScreen({ route, navigation }: any) {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#0f0f0f" },
+const getStyles = (c: ThemeColors) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
@@ -222,13 +226,13 @@ const styles = StyleSheet.create({
         paddingTop: 16,
         paddingBottom: 12,
         borderBottomWidth: 1,
-        borderBottomColor: "#1e1e1e",
+        borderBottomColor: c.divider,
     },
-    programLabel: { fontSize: 20, fontWeight: "700", color: "#fff" },
-    stats: { fontSize: 13, color: "#888", marginTop: 2 },
+    programLabel: { fontSize: 20, fontWeight: "700", color: c.text },
+    stats: { fontSize: 13, color: c.textDim, marginTop: 2 },
     headerRight: { flexDirection: "row", alignItems: "center", gap: 12 },
-    timer: { fontSize: 18, fontWeight: "700", color: "#e0ff4f", fontVariant: ["tabular-nums"] },
-    endBtn: { backgroundColor: "#ff4f4f", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+    timer: { fontSize: 18, fontWeight: "700", color: c.accent, fontVariant: ["tabular-nums"] },
+    endBtn: { backgroundColor: c.danger, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
     endBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
     cardWrapper: {
         flexDirection: "row",
@@ -242,5 +246,5 @@ const styles = StyleSheet.create({
         paddingHorizontal: 4,
         paddingVertical: 20,
     },
-    dragIcon: { color: "#555", fontSize: 20 },
+    dragIcon: { color: c.textFaint, fontSize: 20 },
 });
