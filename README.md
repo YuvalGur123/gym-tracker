@@ -29,6 +29,7 @@ A mobile workout tracking app built with React Native and Expo. Log sessions, tr
 - Track max weight or total volume over time
 - Filter by exercise or by program
 - Visual line chart with session-by-session trend
+- Track changes in body weight with visualisation
 
 ### General
 - All data stored **locally on device** via SQLite (no account needed)
