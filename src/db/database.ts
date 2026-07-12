@@ -50,11 +50,26 @@ export function initDB() {
     );
   `);
 
-    try { db.execSync(`ALTER TABLE programs ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
-    try { db.execSync(`ALTER TABLE exercises ADD COLUMN sort_order INTEGER DEFAULT 0;`); } catch { }
+    let programsJustAltered = false;
+    let exercisesJustAltered = false;
+    try {
+        db.execSync(`ALTER TABLE programs ADD COLUMN sort_order INTEGER DEFAULT 0;`);
+        programsJustAltered = true;
+    } catch { }
+    try {
+        db.execSync(`ALTER TABLE exercises ADD COLUMN sort_order INTEGER DEFAULT 0;`);
+        exercisesJustAltered = true;
+    } catch { }
 
-    db.execSync(`UPDATE programs SET sort_order = rowid WHERE sort_order = 0;`);
-    db.execSync(`UPDATE exercises SET sort_order = rowid WHERE sort_order = 0;`);
+    // Only backfill from rowid the one time the column is freshly added —
+    // otherwise this would clobber legitimately-saved sort_order values
+    // (e.g. reordered items whose sort_order is 0) on every app launch.
+    if (programsJustAltered) {
+        db.execSync(`UPDATE programs SET sort_order = rowid;`);
+    }
+    if (exercisesJustAltered) {
+        db.execSync(`UPDATE exercises SET sort_order = rowid;`);
+    }
 
     db.execSync(`
       UPDATE exercise_logs

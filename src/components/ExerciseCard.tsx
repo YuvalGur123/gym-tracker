@@ -2,6 +2,7 @@ import React, { useState, memo } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { LoggedSet } from "../types";
 import { useTheme } from "../theme/ThemeContext";
+import { useUnit } from "../theme/UnitContext";
 import { ThemeColors } from "../theme/theme";
 
 type Props = {
@@ -14,19 +15,25 @@ type Props = {
     personalRecord?: number;
 };
 
+function fmt(n: number) {
+    // Up to 1 decimal, no trailing .0
+    return Number(n.toFixed(1)).toString();
+}
+
 const ExerciseCard = memo(function ExerciseCard({
     exerciseName, sets, onAddSet, onDeleteSet, lastWeight, lastReps, personalRecord,
 }: Props) {
     const { colors } = useTheme();
+    const { unit, kgToDisplay, displayToKg } = useUnit();
     const styles = getStyles(colors);
-    const [weight, setWeight] = useState(lastWeight ? String(lastWeight) : "");
+    const [weight, setWeight] = useState(lastWeight != null ? fmt(kgToDisplay(lastWeight)) : "");
     const [reps, setReps] = useState(lastReps ? String(lastReps) : "");
 
     function handleAddSet() {
         const w = parseFloat(weight);
         const r = parseInt(reps, 10);
         if (isNaN(w) || isNaN(r) || w < 0 || r <= 0) return;
-        onAddSet(w, r);
+        onAddSet(displayToKg(w), r); // always store in kg
         setReps("");
     }
 
@@ -53,6 +60,7 @@ const ExerciseCard = memo(function ExerciseCard({
         );
     }
 
+    // Sets are stored in kg — compare in kg, display converted
     const bestSet = sets.length > 0
         ? sets.reduce((best, s) => s.weight > best.weight ? s : best, sets[0])
         : null;
@@ -64,13 +72,17 @@ const ExerciseCard = memo(function ExerciseCard({
                 <View style={{ flex: 1 }}>
                     <Text style={styles.name}>{exerciseName}</Text>
                     {lastWeight != null && (
-                        <Text style={styles.lastSession}>Last: {lastWeight}kg × {lastReps}</Text>
+                        <Text style={styles.lastSession}>
+                            Last: {fmt(kgToDisplay(lastWeight))}{unit} × {lastReps}
+                        </Text>
                     )}
                 </View>
                 <View style={styles.headerRight}>
                     {isPR && <Text style={styles.prBadge}>🏆 PR</Text>}
                     {bestSet && (
-                        <Text style={styles.best}>Best: {bestSet.weight}kg × {bestSet.reps}</Text>
+                        <Text style={styles.best}>
+                            Best: {fmt(kgToDisplay(bestSet.weight))}{unit} × {bestSet.reps}
+                        </Text>
                     )}
                 </View>
             </View>
@@ -87,10 +99,10 @@ const ExerciseCard = memo(function ExerciseCard({
                     {sets.map((set, i) => (
                         <View key={set.id} style={styles.tableRow}>
                             <Text style={[styles.tableCell, styles.setCol]}>{i + 1}</Text>
-                            <Text style={styles.tableCell}>{set.weight}kg</Text>
+                            <Text style={styles.tableCell}>{fmt(kgToDisplay(set.weight))}{unit}</Text>
                             <Text style={styles.tableCell}>{set.reps}</Text>
                             <Text style={[styles.tableCell, styles.volText]}>
-                                {(set.weight * set.reps).toFixed(0)}
+                                {(kgToDisplay(set.weight) * set.reps).toFixed(0)}
                             </Text>
                             <TouchableOpacity
                                 style={styles.deleteCol}
@@ -107,7 +119,7 @@ const ExerciseCard = memo(function ExerciseCard({
             <View style={styles.inputRow}>
                 <TextInput
                     style={styles.input}
-                    placeholder="kg"
+                    placeholder={unit}
                     placeholderTextColor={colors.textFaint}
                     keyboardType="decimal-pad"
                     value={weight}

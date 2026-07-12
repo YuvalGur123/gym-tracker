@@ -13,7 +13,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { loadSessionSummaries, loadSessionDetail, deleteSession, SessionSummary, SessionDetail } from "../db/database";
 import { useTheme } from "../theme/ThemeContext";
+import { useUnit } from "../theme/UnitContext";
 import { ThemeColors } from "../theme/theme";
+
+function fmt(n: number) {
+    return Number(n.toFixed(1)).toString();
+}
 
 function formatDate(iso: string) {
     const d = new Date(iso);
@@ -34,10 +39,11 @@ function SessionDetailModal({ session, onClose, onDelete, colors }: {
     session: SessionDetail; onClose: () => void; onDelete: () => void; colors: ThemeColors;
 }) {
     const insets = useSafeAreaInsets();
+    const { unit, kgToDisplay } = useUnit();
     const modal = getModalStyles(colors);
     const totalSets = session.exercises.reduce((acc, e) => acc + e.sets.length, 0);
     const totalVolume = session.exercises.reduce((acc, e) =>
-        acc + e.sets.reduce((a, s) => a + s.weight * s.reps, 0), 0
+        acc + e.sets.reduce((a, s) => a + kgToDisplay(s.weight) * s.reps, 0), 0
     );
 
     function confirmDelete() {
@@ -78,7 +84,7 @@ function SessionDetailModal({ session, onClose, onDelete, colors }: {
                     </View>
                     <View style={modal.statBox}>
                         <Text style={modal.statValue}>{totalVolume.toFixed(0)}</Text>
-                        <Text style={modal.statLabel}>VOLUME (kg)</Text>
+                        <Text style={modal.statLabel}>VOLUME ({unit})</Text>
                     </View>
                 </View>
 
@@ -95,10 +101,10 @@ function SessionDetailModal({ session, onClose, onDelete, colors }: {
                             {ex.sets.map((set, j) => (
                                 <View key={j} style={modal.tableRow}>
                                     <Text style={modal.cell}>{j + 1}</Text>
-                                    <Text style={modal.cell}>{set.weight}kg</Text>
+                                    <Text style={modal.cell}>{fmt(kgToDisplay(set.weight))}{unit}</Text>
                                     <Text style={modal.cell}>{set.reps}</Text>
                                     <Text style={[modal.cell, modal.volText]}>
-                                        {(set.weight * set.reps).toFixed(0)}
+                                        {(kgToDisplay(set.weight) * set.reps).toFixed(0)}
                                     </Text>
                                 </View>
                             ))}

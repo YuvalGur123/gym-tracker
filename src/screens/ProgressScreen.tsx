@@ -52,10 +52,13 @@ function makeXLabels(dates: string[]): string[] {
 
 // ── Shared line chart (pure RN views) ─────────────────────
 
-function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
+function LineChart({ values, labels, unit = "", decimals = 1 }: {
+    values: number[]; labels: string[]; unit?: string; decimals?: number;
+}) {
     const { colors: c } = useTheme();
     const chartStyles = getChartStyles(c);
     const [chartW, setChartW] = useState(0);
+    const [selected, setSelected] = useState<number | null>(null);
 
     if (values.length < 2) {
         return (
@@ -85,6 +88,13 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
         return { x: p.x, y: p.y, length, angle };
     });
 
+    const sel = selected !== null ? pts[selected] : null;
+    // Clamp tooltip horizontally so it doesn't overflow the chart edges
+    const tooltipW = 110;
+    const tooltipLeft = sel
+        ? Math.min(Math.max(sel.x - tooltipW / 2, 0), Math.max(chartW - tooltipW, 0))
+        : 0;
+
     return (
         <View style={chartStyles.container}>
             <View style={chartStyles.plotRow}>
@@ -95,35 +105,57 @@ function LineChart({ values, labels }: { values: number[]; labels: string[] }) {
                 </View>
 
                 <View
-                    style={{ flex: 1, height: CHART_H, overflow: "hidden" }}
+                    style={{ flex: 1, height: CHART_H }}
                     onLayout={(e) => setChartW(e.nativeEvent.layout.width)}
                 >
-                    {[0.15, 0.5, 0.85].map((t, i) => (
-                        <View key={i} style={[chartStyles.gridLine, { top: t * CHART_H }]} />
-                    ))}
+                    <View style={{ overflow: "hidden", height: CHART_H }}>
+                        {[0.15, 0.5, 0.85].map((t, i) => (
+                            <View key={i} style={[chartStyles.gridLine, { top: t * CHART_H }]} />
+                        ))}
 
-                    {segments.map((seg, i) => (
-                        <View
-                            key={i}
-                            style={{
-                                position: "absolute",
-                                left: seg.x,
-                                top: seg.y - 1,
-                                width: seg.length,
-                                height: 2,
-                                backgroundColor: c.accent,
-                                transformOrigin: "left center",
-                                transform: [{ rotate: `${seg.angle}deg` }],
-                            }}
-                        />
-                    ))}
+                        {segments.map((seg, i) => (
+                            <View
+                                key={i}
+                                style={{
+                                    position: "absolute",
+                                    left: seg.x,
+                                    top: seg.y - 1,
+                                    width: seg.length,
+                                    height: 2,
+                                    backgroundColor: c.accent,
+                                    transformOrigin: "left center",
+                                    transform: [{ rotate: `${seg.angle}deg` }],
+                                }}
+                            />
+                        ))}
 
-                    {pts.map((p, i) => (
+                        {pts.map((p, i) => (
+                            <TouchableOpacity
+                                key={i}
+                                onPress={() => setSelected(selected === i ? null : i)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                style={[
+                                    chartStyles.dot,
+                                    { left: p.x - DOT_R, top: p.y - DOT_R },
+                                    selected === i && chartStyles.dotSelected,
+                                ]}
+                            />
+                        ))}
+                    </View>
+
+                    {sel && selected !== null && (
                         <View
-                            key={i}
-                            style={[chartStyles.dot, { left: p.x - DOT_R, top: p.y - DOT_R }]}
-                        />
-                    ))}
+                            style={[
+                                chartStyles.tooltip,
+                                { left: tooltipLeft, top: Math.max(sel.y - 46, 0), width: tooltipW },
+                            ]}
+                        >
+                            <Text style={chartStyles.tooltipDate}>{labels[selected]}</Text>
+                            <Text style={chartStyles.tooltipValue}>
+                                {values[selected].toFixed(decimals)}{unit}
+                            </Text>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -148,6 +180,17 @@ const getChartStyles = (c: ThemeColors) => StyleSheet.create({
     yLabel: { color: c.textFaint, fontSize: 10 },
     gridLine: { position: "absolute", left: 0, right: 0, height: 1, backgroundColor: c.divider },
     dot: { position: "absolute", width: DOT_R * 2, height: DOT_R * 2, borderRadius: DOT_R, backgroundColor: c.accent },
+    dotSelected: { borderWidth: 3, borderColor: c.text },
+    tooltip: {
+        position: "absolute",
+        backgroundColor: c.text,
+        borderRadius: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        alignItems: "center",
+    },
+    tooltipDate: { color: c.bg, fontSize: 10, fontWeight: "600", opacity: 0.7 },
+    tooltipValue: { color: c.bg, fontSize: 14, fontWeight: "800" },
     xLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 6 },
     xLabel: { color: c.textFaint, fontSize: 11 },
 });
@@ -166,6 +209,7 @@ function processExerciseHistory(history: ExerciseHistory[]): ExerciseDataPoint[]
 
 function ExerciseView() {
     const { colors } = useTheme();
+    const { unit, kgToDisplay } = useUnit();
     const styles = getStyles(colors);
     const [names, setNames] = useState<string[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
@@ -183,8 +227,10 @@ function ExerciseView() {
 
     function select(name: string) { setSelected(name); setHistory(loadExerciseHistory(name)); }
 
+    // processExerciseHistory returns raw kg values; convert to display unit here
     const data = useMemo(() => processExerciseHistory(history), [history]);
-    const values = data.map((d) => d[metric]);
+    const scale = kgToDisplay(1); // linear conversion factor
+    const values = data.map((d) => metric === "maxWeight" ? kgToDisplay(d[metric]) : d[metric] * scale);
     const dates = data.map((d) => d.date);
     const labels = makeXLabels(dates);
     const latest = values[values.length - 1] ?? null;
@@ -212,13 +258,13 @@ function ExerciseView() {
                     latest={latest}
                     count={data.length}
                     change={change}
-                    unit={metric === "maxWeight" ? "kg" : ""}
+                    unit={metric === "maxWeight" ? unit : ""}
                     decimals={metric === "totalVolume" ? 0 : 1}
                 />
             )}
 
             <View style={styles.chartContainer}>
-                <LineChart values={values} labels={labels} />
+                <LineChart values={values} labels={labels} unit={metric === "maxWeight" ? unit : ""} decimals={metric === "totalVolume" ? 0 : 1} />
             </View>
         </>
     );
@@ -228,6 +274,7 @@ function ExerciseView() {
 
 function ProgramView() {
     const { colors } = useTheme();
+    const { unit, kgToDisplay } = useUnit();
     const styles = getStyles(colors);
     const [names, setNames] = useState<string[]>([]);
     const [selected, setSelected] = useState<string | null>(null);
@@ -245,7 +292,8 @@ function ProgramView() {
 
     function select(name: string) { setSelected(name); setHistory(loadProgramHistory(name)); }
 
-    const values = history.map((h) => h[metric]);
+    const scale = kgToDisplay(1);
+    const values = history.map((h) => metric === "maxWeight" ? kgToDisplay(h[metric]) : h[metric] * scale);
     const dates = history.map((h) => h.date);
     const labels = makeXLabels(dates);
     const latest = values[values.length - 1] ?? null;
@@ -275,13 +323,13 @@ function ProgramView() {
                     latest={latest}
                     count={history.length}
                     change={change}
-                    unit={metric === "maxWeight" ? "kg" : ""}
+                    unit={metric === "maxWeight" ? unit : ""}
                     decimals={metric === "totalVolume" ? 0 : 1}
                 />
             )}
 
             <View style={styles.chartContainer}>
-                <LineChart values={values} labels={labels} />
+                <LineChart values={values} labels={labels} unit={metric === "maxWeight" ? unit : ""} decimals={metric === "totalVolume" ? 0 : 1} />
             </View>
 
             {latestBreakdown.length > 0 && (
@@ -290,8 +338,8 @@ function ProgramView() {
                     {latestBreakdown.map((ex) => (
                         <View key={ex.name} style={styles.breakdownRow}>
                             <Text style={styles.breakdownName}>{ex.name}</Text>
-                            <Text style={styles.breakdownStat}>{ex.maxWeight}kg</Text>
-                            <Text style={styles.breakdownVolume}>{ex.totalVolume.toFixed(0)} vol</Text>
+                            <Text style={styles.breakdownStat}>{kgToDisplay(ex.maxWeight).toFixed(1)}{unit}</Text>
+                            <Text style={styles.breakdownVolume}>{(ex.totalVolume * scale).toFixed(0)} vol</Text>
                         </View>
                     ))}
                 </View>
@@ -329,17 +377,18 @@ function BodyWeightView() {
         setEntries(all);
         const today = getTodayWeightEntry();
         setTodayEntry(today);
-        setInputValue(today ? String(round1(kgToDisplay(today.weight))) : "");
+        setInputValue(today ? String(round2(kgToDisplay(today.weight))) : "");
     }
 
-    function round1(n: number) {
-        return Math.round(n * 10) / 10;
+    function round2(n: number) {
+        return Math.round(n * 100) / 100;
     }
 
     function handleInputChange(text: string) {
         const cleaned = text.replace(/[^0-9.]/g, "");
         const parts = cleaned.split(".");
         if (parts.length > 2) return;
+        if (parts[1] && parts[1].length > 2) return; // max 2 decimal places
         setInputValue(cleaned);
     }
 
@@ -376,10 +425,19 @@ function BodyWeightView() {
     const dates = entries.map((e) => e.date);
     const labels = makeXLabels(dates);
 
-    const latestAvg = avgValues[avgValues.length - 1] ?? null;
+    // Mean of the most recent 7 raw weigh-ins (not the smoothed chart line)
+    const last7 = displayValues.slice(-7);
+    const mean7 = last7.length > 0
+        ? last7.reduce((a, b) => a + b, 0) / last7.length
+        : null;
+
+    // "Current" is today's/most recent actual entry — NOT the smoothed average,
+    // which for the last point would be mathematically identical to mean7.
+    const latestRaw = displayValues[displayValues.length - 1] ?? null;
     const firstAvg = avgValues[0] ?? null;
-    const change = latestAvg !== null && firstAvg !== null && avgValues.length > 1
-        ? ((latestAvg - firstAvg) / (firstAvg || 1)) * 100 : null;
+    const lastAvg = avgValues[avgValues.length - 1] ?? null;
+    const change = lastAvg !== null && firstAvg !== null && avgValues.length > 1
+        ? ((lastAvg - firstAvg) / (firstAvg || 1)) * 100 : null;
 
     if (entries.length === 0 && !todayEntry) {
         return (
@@ -410,17 +468,19 @@ function BodyWeightView() {
 
             {entries.length > 0 && (
                 <StatsRow
-                    latest={latestAvg}
+                    latest={latestRaw}
                     count={entries.length}
                     change={change}
                     unit={unit}
-                    decimals={1}
+                    decimals={2}
+                    middleLabel="7-Day Avg"
+                    middleValue={mean7 !== null ? `${mean7.toFixed(2)}${unit}` : "—"}
                 />
             )}
 
             <View style={styles.chartContainer}>
                 {entries.length >= 2 ? (
-                    <LineChart values={avgValues} labels={labels} />
+                    <LineChart values={avgValues} labels={labels} unit={unit} decimals={2} />
                 ) : (
                     <View style={{ padding: 20, alignItems: "center" }}>
                         <Text style={{ color: colors.textFaint, fontSize: 13 }}>
@@ -536,12 +596,14 @@ function MetricToggle({ options, active, onChange }: {
     );
 }
 
-function StatsRow({ latest, count, change, unit, decimals }: {
+function StatsRow({ latest, count, change, unit, decimals, middleLabel, middleValue }: {
     latest: number | null;
     count: number;
     change: number | null;
     unit: string;
     decimals: number;
+    middleLabel?: string;
+    middleValue?: string;
 }) {
     const { colors } = useTheme();
     const styles = getStyles(colors);
@@ -554,8 +616,8 @@ function StatsRow({ latest, count, change, unit, decimals }: {
                 <Text style={styles.statLabel}>Current</Text>
             </View>
             <View style={styles.statBox}>
-                <Text style={styles.statValue}>{count}</Text>
-                <Text style={styles.statLabel}>Sessions</Text>
+                <Text style={styles.statValue}>{middleValue ?? count}</Text>
+                <Text style={styles.statLabel}>{middleLabel ?? "Sessions"}</Text>
             </View>
             {change !== null && (
                 <View style={styles.statBox}>
