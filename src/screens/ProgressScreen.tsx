@@ -358,6 +358,33 @@ function movingAverage(values: number[], windowSize: number): number[] {
     });
 }
 
+// Groups entries into calendar weeks (Monday start) and averages each week.
+type WeeklyPoint = { weekStart: string; mean: number; count: number };
+
+function getWeekStart(dateStr: string): string {
+    const d = new Date(dateStr + "T00:00:00");
+    const day = d.getDay(); // 0=Sun..6=Sat
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    d.setDate(d.getDate() + diffToMonday);
+    return d.toISOString().slice(0, 10);
+}
+
+function aggregateWeekly(entries: { date: string; weight: number }[]): WeeklyPoint[] {
+    const map = new Map<string, number[]>();
+    for (const e of entries) {
+        const wk = getWeekStart(e.date);
+        if (!map.has(wk)) map.set(wk, []);
+        map.get(wk)!.push(e.weight);
+    }
+    return Array.from(map.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([weekStart, weights]) => ({
+            weekStart,
+            mean: weights.reduce((a, b) => a + b, 0) / weights.length,
+            count: weights.length,
+        }));
+}
+
 function BodyWeightView() {
     const { colors } = useTheme();
     const { unit, kgToDisplay, displayToKg } = useUnit();
@@ -365,6 +392,7 @@ function BodyWeightView() {
     const [entries, setEntries] = useState<WeightEntry[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [todayEntry, setTodayEntry] = useState<WeightEntry | null>(null);
+    const [granularity, setGranularity] = useState<"daily" | "weekly">("daily");
 
     useFocusEffect(
         useCallback(() => {
@@ -439,6 +467,22 @@ function BodyWeightView() {
     const change = lastAvg !== null && firstAvg !== null && avgValues.length > 1
         ? ((lastAvg - firstAvg) / (firstAvg || 1)) * 100 : null;
 
+    const weeklyPoints = useMemo(() => {
+        const zipped = entries.map((e) => ({ date: e.date, weight: kgToDisplay(e.weight) }));
+        return aggregateWeekly(zipped);
+    }, [entries, unit]);
+
+    const thisWeekMean = weeklyPoints[weeklyPoints.length - 1]?.mean ?? null;
+    const lastWeekMean = weeklyPoints[weeklyPoints.length - 2]?.mean ?? null;
+    const weekDelta = thisWeekMean !== null && lastWeekMean !== null
+        ? thisWeekMean - lastWeekMean : null;
+    const weekDeltaPct = weekDelta !== null && lastWeekMean
+        ? (weekDelta / lastWeekMean) * 100 : null;
+
+    const chartValues = granularity === "weekly" ? weeklyPoints.map((w) => w.mean) : avgValues;
+    const chartDates = granularity === "weekly" ? weeklyPoints.map((w) => w.weekStart) : dates;
+    const chartLabels = makeXLabels(chartDates);
+
     if (entries.length === 0 && !todayEntry) {
         return (
             <>
@@ -478,9 +522,49 @@ function BodyWeightView() {
                 />
             )}
 
+            {weeklyPoints.length >= 2 && (
+                <View style={styles.weekCompareCard}>
+                    <View style={styles.weekCompareBox}>
+                        <Text style={styles.weekCompareLabel}>Last Week</Text>
+                        <Text style={styles.weekCompareValue}>
+                            {lastWeekMean !== null ? `${lastWeekMean.toFixed(2)}${unit}` : "—"}
+                        </Text>
+                    </View>
+                    <Text style={styles.weekCompareArrow}>→</Text>
+                    <View style={styles.weekCompareBox}>
+                        <Text style={styles.weekCompareLabel}>This Week</Text>
+                        <Text style={styles.weekCompareValue}>
+                            {thisWeekMean !== null ? `${thisWeekMean.toFixed(2)}${unit}` : "—"}
+                        </Text>
+                    </View>
+                    {weekDeltaPct !== null && weekDelta !== null && (
+                        <View style={styles.weekCompareBox}>
+                            <Text style={styles.weekCompareLabel}>Change</Text>
+                            <Text style={[
+                                styles.weekCompareValue,
+                                { color: weekDelta >= 0 ? "#4fdb6f" : "#ff6b6b" },
+                            ]}>
+                                {weekDelta >= 0 ? "+" : ""}{weekDelta.toFixed(2)}{unit}
+                            </Text>
+                        </View>
+                    )}
+                </View>
+            )}
+
+            {entries.length >= 2 && (
+                <MetricToggle
+                    options={[
+                        { key: "daily", label: "Daily" },
+                        { key: "weekly", label: "Weekly" },
+                    ]}
+                    active={granularity}
+                    onChange={(k) => setGranularity(k as "daily" | "weekly")}
+                />
+            )}
+
             <View style={styles.chartContainer}>
                 {entries.length >= 2 ? (
-                    <LineChart values={avgValues} labels={labels} unit={unit} decimals={2} />
+                    <LineChart values={chartValues} labels={chartLabels} unit={unit} decimals={2} />
                 ) : (
                     <View style={{ padding: 20, alignItems: "center" }}>
                         <Text style={{ color: colors.textFaint, fontSize: 13 }}>
@@ -490,9 +574,14 @@ function BodyWeightView() {
                 )}
             </View>
 
-            {avgWindow > 1 && (
+            {granularity === "daily" && avgWindow > 1 && (
                 <Text style={styles.hint}>
                     Chart shows a {avgWindow}-day moving average to smooth out daily fluctuations.
+                </Text>
+            )}
+            {granularity === "weekly" && (
+                <Text style={styles.hint}>
+                    Each point is the average weight for that calendar week (Mon–Sun).
                 </Text>
             )}
         </>
@@ -731,4 +820,21 @@ const getStyles = (c: ThemeColors) => StyleSheet.create({
     entryDeleteBtn: { padding: 8 },
     entryDeleteBtnText: { color: c.danger, fontSize: 16, fontWeight: "700" },
     hint: { fontSize: 12, color: c.textFaint, paddingHorizontal: 20, marginTop: -8, marginBottom: 20, lineHeight: 18 },
+
+    weekCompareCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginHorizontal: 20,
+        marginBottom: 16,
+        backgroundColor: c.card,
+        borderRadius: 12,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: c.cardBorder,
+        gap: 8,
+    },
+    weekCompareBox: { flex: 1, alignItems: "center" },
+    weekCompareLabel: { fontSize: 10, color: c.textFaint, fontWeight: "600", textTransform: "uppercase", marginBottom: 4 },
+    weekCompareValue: { fontSize: 16, fontWeight: "800", color: c.text },
+    weekCompareArrow: { color: c.textFaint, fontSize: 16 },
 });

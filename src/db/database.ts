@@ -94,6 +94,10 @@ export function saveProgram(program: Program, sortOrder?: number) {
         `INSERT OR REPLACE INTO programs (id, name, sort_order) VALUES (?, ?, ?);`,
         [program.id, program.name, order]
     );
+    // Clear out any exercises previously saved for this program that are no
+    // longer in the list (e.g. removed by the user during editing), then
+    // reinsert the current list fresh.
+    db.runSync(`DELETE FROM exercises WHERE programId = ?;`, [program.id]);
     program.exercises.forEach((ex, i) => {
         db.runSync(
             `INSERT OR REPLACE INTO exercises (id, programId, name, sort_order) VALUES (?, ?, ?, ?);`,
